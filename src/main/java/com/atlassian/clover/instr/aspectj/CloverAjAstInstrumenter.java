@@ -13,8 +13,10 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.LabeledStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TryStatement;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.BlockScope;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.ClassScope;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.CompilationUnitScope;
 
 /**
  *
@@ -38,6 +40,27 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         super.endVisit(tryStatement, scope);
     }
 
+
+    // instrument top-level class
+
+    @Override
+    public boolean visit(TypeDeclaration typeDeclaration, CompilationUnitScope scope) {
+        // TODO IT'S A FAKE
+        session.enterClass(
+                "Foo",
+                new FixedSourceRegion(0, 0),
+                Modifiers.createFrom(Modifier.PUBLIC, null),
+                false, false, false);
+        return super.visit(typeDeclaration, scope);
+    }
+
+    @Override
+    public void endVisit(TypeDeclaration typeDeclaration, CompilationUnitScope scope) {
+        super.endVisit(typeDeclaration, scope);
+        // TODO FIX REGION
+        session.exitClass(0, 0);
+    }
+
     // instrument methods
 
     @Override
@@ -49,16 +72,16 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 false, null, false, 0,
                 LanguageConstruct.Builtin.METHOD);
         return super.visit(methodDeclaration, scope);
-
     }
-
 
     @Override
     public void endVisit(MethodDeclaration methodDeclaration, ClassScope scope) {
+        super.endVisit(methodDeclaration, scope);
         Pair<Integer, Integer> lineCol = charIndexToLineCol(methodDeclaration.declarationSourceEnd);
         session.exitMethod(lineCol.first, lineCol.second);
-        super.endVisit(methodDeclaration, scope);
     }
+
+    // helper methods
 
     protected MethodSignature extractMethodSignature(MethodDeclaration methodDeclaration) {
         // TODO create a real method signature

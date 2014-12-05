@@ -4,13 +4,20 @@ import com.atlassian.clover.api.instrumentation.InstrumentationSession;
 import com_atlassian_clover.Clover;
 import com_atlassian_clover.CoverageRecorder;
 import org.aspectj.ajdt.internal.compiler.ICompilerAdapter;
+import org.aspectj.ajdt.internal.compiler.problem.AjProblemReporter;
+import org.aspectj.org.eclipse.jdt.internal.compiler.DefaultErrorHandlingPolicies;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.FieldDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.SingleTypeReference;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.aspectj.org.eclipse.jdt.internal.compiler.env.ICompilationUnit;
+import org.aspectj.org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.aspectj.org.eclipse.jdt.internal.compiler.parser.Parser;
+import org.aspectj.org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
+import org.aspectj.org.eclipse.jdt.internal.compiler.problem.ProblemReporter;
+
+import java.io.File;
 
 public class CloverAjCompilerAdapter implements ICompilerAdapter {
 
@@ -79,14 +86,22 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
     public void beforeResolving(CompilationUnitDeclaration unit) {
         // TODO walk trhough the AST tree
         addCoverageRecorderField(unit);
+        session.enterFile("com.acme", new File("abc"), 0, 0, 0, 0, 0);
         unit.traverse(new CloverAjAstInstrumenter(session), unit.scope);
+        session.exitFile();
         originalAdapter.beforeResolving(unit);
     }
 
     private void addCoverageRecorderField(CompilationUnitDeclaration unit) {
         for (TypeDeclaration type : unit.types) {
-            FieldDeclaration[] newFields = new FieldDeclaration[type.fields.length + 1];
-            System.arraycopy(type.fields, 0, newFields, 0, type.fields.length);
+            final FieldDeclaration[] newFields;
+            if (type.fields != null) {
+                newFields = new FieldDeclaration[type.fields.length + 1];
+                System.arraycopy(type.fields, 0, newFields, 0, type.fields.length);
+            } else {
+                newFields = new FieldDeclaration[1];
+            }
+
             FieldDeclaration recorderField = new FieldDeclaration(RECORDER_FIELD_NAME, 0, 0);
             // TODO add CLV_R = Clover.getRecorder();
 //            type.fields =
@@ -100,7 +115,11 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
             //   CloverProfile[] profiles, final String[] nvpProperties)
             String initializationSource = Clover.class.getName() + ".getRecorder(\"" + initString + "\", 0, 0, 47, null, null)";
             // $CLV_R = Clover.getRecorder()
-            new Parser(null, true).parse(recorderField, type, unit, initializationSource.toCharArray());
+            ProblemReporter reporter = new ProblemReporter(
+                    DefaultErrorHandlingPolicies.proceedWithAllProblems(),
+                    new CompilerOptions(),
+                    new DefaultProblemFactory());
+            new Parser(reporter, true).parse(recorderField, type, unit, initializationSource.toCharArray());
 
             // add new field
             newFields[newFields.length - 1] = recorderField;
