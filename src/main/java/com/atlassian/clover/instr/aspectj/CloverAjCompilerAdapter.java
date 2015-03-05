@@ -86,9 +86,9 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
     public void beforeResolving(CompilationUnitDeclaration unit) {
         // TODO walk trhough the AST tree
         addCoverageRecorderField(unit);
-        session.enterFile("com.acme", new File("abc"), 0, 0, 0, 0, 0);
+//        session.enterFile("com.acme", new File("abc"), 0, 0, 0, 0, 0);
         unit.traverse(new CloverAjAstInstrumenter(session), unit.scope);
-        session.exitFile();
+//        session.exitFile();
         originalAdapter.beforeResolving(unit);
     }
 
