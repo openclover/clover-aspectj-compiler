@@ -69,4 +69,8 @@ public class CharToLineColMapper {
             index++;
         }
     }
+
+    public int getLineCount() {
+        return linesEndings.size();
+    }
 }
