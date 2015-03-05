@@ -58,7 +58,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
         File sourceFile = new File(new String(compilationUnitDeclaration.getFileName()));
         session.enterFile(
-                "fake.package.name",
+                "introduction", // TODO get a true pkg name
                 sourceFile,
                 lineColMapper.getLineCount(),
                 lineColMapper.getLineCount(),
