@@ -21,7 +21,7 @@ public class CloverAjBuildManager extends AjBuildManager {
 
     @Override
     public ICompilerAdapter getAdapter(org.aspectj.org.eclipse.jdt.internal.compiler.Compiler forCompiler) {
-        return new CloverAjCompilerAdapter(super.getAdapter(forCompiler), session, initString);
+        return new CloverAjCompilerAdapter(super.getAdapter(forCompiler), session, initString, forCompiler.lookupEnvironment);
     }
 
 }

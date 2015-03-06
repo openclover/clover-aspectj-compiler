@@ -2,22 +2,22 @@ package com.atlassian.clover.instr.aspectj;
 
 import com.atlassian.clover.api.instrumentation.InstrumentationSession;
 import com_atlassian_clover.Clover;
-import com_atlassian_clover.CoverageRecorder;
 import org.aspectj.ajdt.internal.compiler.ICompilerAdapter;
-import org.aspectj.ajdt.internal.compiler.problem.AjProblemReporter;
 import org.aspectj.org.eclipse.jdt.internal.compiler.DefaultErrorHandlingPolicies;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.FieldDeclaration;
-import org.aspectj.org.eclipse.jdt.internal.compiler.ast.SingleTypeReference;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.QualifiedTypeReference;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.aspectj.org.eclipse.jdt.internal.compiler.env.ICompilationUnit;
 import org.aspectj.org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.FieldBinding;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
 import org.aspectj.org.eclipse.jdt.internal.compiler.parser.Parser;
 import org.aspectj.org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
 import org.aspectj.org.eclipse.jdt.internal.compiler.problem.ProblemReporter;
 
-import java.io.File;
 
 public class CloverAjCompilerAdapter implements ICompilerAdapter {
 
@@ -25,11 +25,14 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
     private final ICompilerAdapter originalAdapter;
     private final InstrumentationSession session;
     private final String initString;
+    private final LookupEnvironment lookupEnvironment;
 
-    public CloverAjCompilerAdapter(ICompilerAdapter originalAdapter, InstrumentationSession session, String initString) {
+    public CloverAjCompilerAdapter(ICompilerAdapter originalAdapter, InstrumentationSession session, String initString,
+                                   LookupEnvironment lookupEnvironment) {
         this.originalAdapter = originalAdapter;
         this.session = session;
         this.initString = initString;
+        this.lookupEnvironment = lookupEnvironment;
     }
 
     @Override
@@ -84,11 +87,8 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
 
     @Override
     public void beforeResolving(CompilationUnitDeclaration unit) {
-        // TODO walk trhough the AST tree
-        addCoverageRecorderField(unit);
-//        session.enterFile("com.acme", new File("abc"), 0, 0, 0, 0, 0);
         unit.traverse(new CloverAjAstInstrumenter(session), unit.scope);
-//        session.exitFile();
+        addCoverageRecorderField(unit);
         originalAdapter.beforeResolving(unit);
     }
 
@@ -103,17 +103,33 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
             }
 
             FieldDeclaration recorderField = new FieldDeclaration(RECORDER_FIELD_NAME, 0, 0);
-            // TODO add CLV_R = Clover.getRecorder();
-//            type.fields =
-//            type.methods
-
             recorderField.modifiers = ClassFileConstants.AccPublic | ClassFileConstants.AccStatic | ClassFileConstants.AccFinal;
-            recorderField.type = new SingleTypeReference(("L"+ CoverageRecorder.class.getName() + ";").toCharArray(), 0) ;
+
+            char[][] qualifiedType = new char[2][];
+            qualifiedType[0] = "com_atlassian_clover".toCharArray();
+            qualifiedType[1] = "CoverageRecorder".toCharArray();
+            recorderField.type = new QualifiedTypeReference(qualifiedType, new long[2]);
+
+            final ReferenceBinding binaryTypeBinding = lookupEnvironment.askForType(qualifiedType);
+            recorderField.binding = new FieldBinding(
+                    RECORDER_FIELD_NAME,
+                    binaryTypeBinding,
+                    ClassFileConstants.AccPublic | ClassFileConstants.AccStatic | ClassFileConstants.AccFinal,
+                    type.binding, // bind to enclosing class,
+                    null);
+
+//            recorderField.type.resolveType(type.scope);
+            recorderField.resolve(type.staticInitializerScope);
 
             // com.atlassian.clover.Clover.getRecorder(
             //   String initChars, final long dbVersion, final long cfgbits, final int maxNumElements,
             //   CloverProfile[] profiles, final String[] nvpProperties)
-            String initializationSource = Clover.class.getName() + ".getRecorder(\"" + initString + "\", 0, 0, 47, null, null)";
+            String initializationSource = Clover.class.getName() + ".getRecorder(\""
+                    + initString + "\", "
+                    + session.getVersion() + "L, "
+                    + "0L,"
+                    + session.getCurrentFileMaxIndex() + ","
+                    + "null, null)";
             // $CLV_R = Clover.getRecorder()
             ProblemReporter reporter = new ProblemReporter(
                     DefaultErrorHandlingPolicies.proceedWithAllProblems(),
@@ -123,6 +139,7 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
 
             // add new field
             newFields[newFields.length - 1] = recorderField;
+            type.fields = newFields;
         }
     }
 }
