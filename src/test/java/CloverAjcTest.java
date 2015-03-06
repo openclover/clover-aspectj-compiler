@@ -1,3 +1,5 @@
+import clover.com.google.common.collect.Lists;
+import clover.org.apache.commons.lang.StringUtils;
 import com.atlassian.clover.CloverStartup;
 import com.atlassian.clover.Logger;
 import com.atlassian.clover.instr.aspectj.CloverAjc;
@@ -5,6 +7,7 @@ import com.atlassian.clover.reporters.html.HtmlReporter;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -31,7 +34,21 @@ public class CloverAjcTest {
                 "-d", TARGET_CLASSES_DIR,
                 "-noExit"
         };
-        CloverAjc.main(compilerArgs);
+        List<String> failures = Lists.newArrayList();
+        List<String> errors = Lists.newArrayList();
+        List<String> warnings = Lists.newArrayList();
+        List<String> infos = Lists.newArrayList();
+        CloverAjc.bareMain(compilerArgs, false, failures, errors, warnings, infos);
+
+        System.out.println("=== FAILURES ===");
+        System.out.println(StringUtils.join(failures, "\n"));
+        System.out.println("=== ERRORS  ===");
+        System.out.println(StringUtils.join(errors, "\n"));
+        System.out.println("=== WARNINGS ===");
+        System.out.println(StringUtils.join(warnings, "\n"));
+        System.out.println("=== INFOS ===");
+        System.out.println(StringUtils.join(infos, "\n"));
+        System.out.println("=== END ===");
 
         assertTrue(new File(TARGET_CLASSES_DIR, "introduction/CloneablePoint.class").exists());
         assertTrue(new File(CLOVER_DB_PATH).exists());
