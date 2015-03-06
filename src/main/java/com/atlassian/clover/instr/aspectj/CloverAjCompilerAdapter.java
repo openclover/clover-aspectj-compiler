@@ -11,9 +11,11 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.aspectj.org.eclipse.jdt.internal.compiler.env.ICompilationUnit;
 import org.aspectj.org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
+import org.aspectj.org.eclipse.jdt.internal.compiler.impl.Constant;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.FieldBinding;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.SourceTypeBinding;
 import org.aspectj.org.eclipse.jdt.internal.compiler.parser.Parser;
 import org.aspectj.org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
 import org.aspectj.org.eclipse.jdt.internal.compiler.problem.ProblemReporter;
@@ -82,13 +84,14 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
 
     @Override
     public void beforeProcessing(CompilationUnitDeclaration unit) {
+        addCoverageRecorderField(unit);
         originalAdapter.beforeProcessing(unit);
     }
 
     @Override
     public void beforeResolving(CompilationUnitDeclaration unit) {
         unit.traverse(new CloverAjAstInstrumenter(session), unit.scope);
-        addCoverageRecorderField(unit);
+//        addCoverageRecorderField(unit);
         originalAdapter.beforeResolving(unit);
     }
 
@@ -103,22 +106,26 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
             }
 
             FieldDeclaration recorderField = new FieldDeclaration(RECORDER_FIELD_NAME, 0, 0);
-            recorderField.modifiers = ClassFileConstants.AccPublic | ClassFileConstants.AccStatic | ClassFileConstants.AccFinal;
+            recorderField.modifiers = ClassFileConstants.AccPublic | ClassFileConstants.AccStatic /*| ClassFileConstants.AccFinal*/;
 
             char[][] qualifiedType = new char[2][];
             qualifiedType[0] = "com_atlassian_clover".toCharArray();
             qualifiedType[1] = "CoverageRecorder".toCharArray();
             recorderField.type = new QualifiedTypeReference(qualifiedType, new long[2]);
+            recorderField.type.constant = Constant.NotAConstant;
 
             final ReferenceBinding binaryTypeBinding = lookupEnvironment.askForType(qualifiedType);
-            recorderField.binding = new FieldBinding(
+            FieldBinding fieldBinding = new FieldBinding(
                     RECORDER_FIELD_NAME,
                     binaryTypeBinding,
-                    ClassFileConstants.AccPublic | ClassFileConstants.AccStatic | ClassFileConstants.AccFinal,
+                    ClassFileConstants.AccPublic | ClassFileConstants.AccStatic /*| ClassFileConstants.AccFinal*/,
                     type.binding, // bind to enclosing class,
-                    null);
+                    Constant.NotAConstant);
 
+//            SourceTypeBinding sourceFieldBinding = new SourceTypeBinding(qualifiedType, null, type.scope);
+//            FieldBinding fieldBinding2 = sourceFieldBinding.resolveTypeFor(fieldBinding);
 //            recorderField.type.resolveType(type.scope);
+            recorderField.binding = fieldBinding;
             recorderField.resolve(type.staticInitializerScope);
 
             // com.atlassian.clover.Clover.getRecorder(
