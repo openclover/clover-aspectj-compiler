@@ -17,10 +17,10 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Assignment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CaseStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.DoStatement;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.FieldDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ForStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ForeachStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.IfStatement;
-import org.aspectj.org.eclipse.jdt.internal.compiler.ast.LabeledStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.LocalDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MessageSend;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
@@ -33,6 +33,7 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.WhileStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.BlockScope;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.ClassScope;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.CompilationUnitScope;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.MethodScope;
 
 import java.io.File;
 
@@ -67,6 +68,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 0
         );
         return super.visit(compilationUnitDeclaration, scope);
+    }
+
+    @Override
+    public boolean visit(FieldDeclaration fieldDeclaration, MethodScope scope) {
+        return super.visit(fieldDeclaration, scope);
     }
 
     @Override
