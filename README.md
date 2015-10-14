@@ -1,9 +1,9 @@
-*Introduction*
+# Introduction #
 
 This is a DRAFT of Clover integration with AspectJ, which has been prepared during Atlassian ShipIt hackaton. 
 
 
-*Status*
+# Status #
 
 Integration is not working yet. I had to create a subclass of the AJC compiler due to lack of proper API which would 
 allow to plug into compilation phases (e.g. like it's possible for groovyc or scalac). Plugin currently writes
@@ -13,8 +13,8 @@ the AJC compiler is not able to translate it to the bytecode. I suspect that I t
 initialization in one of previous compilation phases - feel free to investigate :-)
 
 
-*Contributing*
+# Contributing #
 
 Feel free to fork this repository and contribute via pull requests. 
 
-You may contact me via email mparfianowicz@atlassian.com 
+You may contact me via email mparfianowicz@atlassian.com
