@@ -1,6 +1,6 @@
 package com.atlassian.clover.instr.aspectj;
 
-import com.atlassian.clover.util.FileUtils;
+import com.atlassian.clover.util.IOStreamUtils;
 import com.atlassian.clover.util.collections.Pair;
 
 import java.io.File;
@@ -25,7 +25,7 @@ public class CharToLineColMapper {
         } catch (IOException ex) {
             System.out.println("Failed to read " + sourceFile);
         } finally {
-            FileUtils.close(inputStream);
+            IOStreamUtils.close(inputStream);
         }
     }
 

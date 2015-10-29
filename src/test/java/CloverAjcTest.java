@@ -54,9 +54,9 @@ public class CloverAjcTest {
         assertTrue(new File(CLOVER_DB_PATH).exists());
 
         // run classes
-        String M2 = "C:\\Users\\Marek\\.m2\\repository\\";
-        String CLASSPATH = M2 + "org\\aspectj\\aspectjrt\\1.8.4\\aspectjrt-1.8.4.jar;"
-                + M2 + "com\\atlassian\\clover\\clover\\4.0.2\\clover-4.0.2.jar;"
+        String M2 = "/Users/mparfianowicz/.m2/repository/";
+        String CLASSPATH = M2 + "org/aspectj/aspectjrt/1.8.4/aspectjrt-1.8.4.jar;"
+                + M2 + "com/atlassian/clover/clover/4.0.6/clover-4.0.6.jar;"
                 + TARGET_CLASSES_DIR;
         JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.CloneablePoint");
         JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.ComparablePoint");

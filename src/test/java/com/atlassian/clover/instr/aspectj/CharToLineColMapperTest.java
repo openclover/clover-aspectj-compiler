@@ -3,7 +3,7 @@ package com.atlassian.clover.instr.aspectj;
 import com.atlassian.clover.util.collections.Pair;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Test for {@link }
