@@ -2,6 +2,7 @@ package com.atlassian.clover.instr.aspectj;
 
 import com.atlassian.clover.api.instrumentation.InstrumentationSession;
 import com.atlassian.clover.api.registry.MethodInfo;
+import com.atlassian.clover.api.registry.PackageInfo;
 import com.atlassian.clover.context.ContextSet;
 import com.atlassian.clover.registry.FixedSourceRegion;
 import com.atlassian.clover.registry.entities.FullStatementInfo;
@@ -30,12 +31,15 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.SwitchStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TryStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.WhileStatement;
+import org.aspectj.org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.BlockScope;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.ClassScope;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.CompilationUnitScope;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.MethodScope;
 
 import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
@@ -57,9 +61,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         // parse current source file and gather information about line endings
         lineColMapper = new CharToLineColMapper(new File(new String(compilationUnitDeclaration.getFileName())));
 
-        File sourceFile = new File(new String(compilationUnitDeclaration.getFileName()));
+        final File sourceFile = new File(new String(compilationUnitDeclaration.getFileName()));
         session.enterFile(
-                "introduction", // TODO get a true pkg name
+                packageNameToString(scope.currentPackageName),
                 sourceFile,
                 lineColMapper.getLineCount(),
                 lineColMapper.getLineCount(),
@@ -68,6 +72,17 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 0
         );
         return super.visit(compilationUnitDeclaration, scope);
+    }
+
+    private String packageNameToString(char[][] currentPackageName) {
+        String name = "";
+        for (int i = 0; i < currentPackageName.length; i++) {
+            name += String.valueOf(currentPackageName[i]);
+            if (i < currentPackageName.length - 1) {
+                name += ".";
+            }
+        }
+        return name.isEmpty() ? PackageInfo.DEFAULT_PACKAGE_NAME : name;
     }
 
     @Override
@@ -81,6 +96,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         // parse current source file and gather information about line endings
         session.exitFile();
     }
+
     // instrument top-level class
 
     @Override
@@ -89,11 +105,35 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         session.enterClass(
                 new String(typeDeclaration.name),
                 new FixedSourceRegion(lineCol.first, lineCol.second),
-                Modifiers.createFrom(Modifier.PUBLIC, null), // TODO convert from ClassFileConstants
+                createFrom(typeDeclaration),
                 false,
                 false,
                 false);
         return super.visit(typeDeclaration, scope);
+    }
+
+    private Modifiers createFrom(TypeDeclaration typeDeclaration) {
+        // AJC to Clover constants mapping
+        final Map<Integer, Integer> AJC_TO_CLOVER = new HashMap<Integer, Integer>();
+        AJC_TO_CLOVER.put(ClassFileConstants.AccPublic, Modifier.PUBLIC);
+        AJC_TO_CLOVER.put(ClassFileConstants.AccProtected, Modifier.PROTECTED);
+        // no AccPackage
+        AJC_TO_CLOVER.put(ClassFileConstants.AccPrivate, Modifier.PRIVATE);
+        AJC_TO_CLOVER.put(ClassFileConstants.AccAbstract, Modifier.ABSTRACT);
+        AJC_TO_CLOVER.put(ClassFileConstants.AccStatic, Modifier.STATIC);
+        AJC_TO_CLOVER.put(ClassFileConstants.AccFinal, Modifier.FINAL);
+        // Note: Modifier.DEFAULT is for default methods in interfaces
+
+        // convert from AJC to Clover ones
+        int modifiers = 0;
+        for (Integer ajcModifier : AJC_TO_CLOVER.keySet()) {
+            if ( (typeDeclaration.modifiers & ajcModifier) != 0) {
+                modifiers |= AJC_TO_CLOVER.get(ajcModifier);
+            }
+        }
+
+        // TODO handle annotations
+        return Modifiers.createFrom(modifiers, null);
     }
 
     @Override
