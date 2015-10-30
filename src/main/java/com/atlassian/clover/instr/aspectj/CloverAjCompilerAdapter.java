@@ -11,14 +11,14 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.aspectj.org.eclipse.jdt.internal.compiler.env.ICompilationUnit;
 import org.aspectj.org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
-import org.aspectj.org.eclipse.jdt.internal.compiler.impl.Constant;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.FieldBinding;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
-import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.SourceTypeBinding;
 import org.aspectj.org.eclipse.jdt.internal.compiler.parser.Parser;
 import org.aspectj.org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
 import org.aspectj.org.eclipse.jdt.internal.compiler.problem.ProblemReporter;
+
+import java.lang.reflect.Field;
 
 
 public class CloverAjCompilerAdapter implements ICompilerAdapter {
@@ -50,6 +50,9 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
     @Override
     public void afterDietParsing(CompilationUnitDeclaration[] units) {
         originalAdapter.afterDietParsing(units);
+        for (CompilationUnitDeclaration unit : units) {
+            addCoverageRecorderField(unit);
+        }
     }
 
     @Override
@@ -84,14 +87,12 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
 
     @Override
     public void beforeProcessing(CompilationUnitDeclaration unit) {
-        addCoverageRecorderField(unit);
         originalAdapter.beforeProcessing(unit);
     }
 
     @Override
     public void beforeResolving(CompilationUnitDeclaration unit) {
         unit.traverse(new CloverAjAstInstrumenter(session), unit.scope);
-//        addCoverageRecorderField(unit);
         originalAdapter.beforeResolving(unit);
     }
 
@@ -105,28 +106,30 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
                 newFields = new FieldDeclaration[1];
             }
 
-            FieldDeclaration recorderField = new FieldDeclaration(RECORDER_FIELD_NAME, 0, 0);
-            recorderField.modifiers = ClassFileConstants.AccPublic | ClassFileConstants.AccStatic /*| ClassFileConstants.AccFinal*/;
+            final FieldDeclaration recorderField = new FieldDeclaration(RECORDER_FIELD_NAME, 0, 0);
+            recorderField.modifiers = ClassFileConstants.AccPublic | ClassFileConstants.AccStatic | ClassFileConstants.AccFinal;
 
             char[][] qualifiedType = new char[2][];
             qualifiedType[0] = "com_atlassian_clover".toCharArray();
             qualifiedType[1] = "CoverageRecorder".toCharArray();
             recorderField.type = new QualifiedTypeReference(qualifiedType, new long[2]);
-            recorderField.type.constant = Constant.NotAConstant;
+//            recorderField.type.constant = Constant.NotAConstant;
+            recorderField.bits = type.bits;
+
 
             final ReferenceBinding binaryTypeBinding = lookupEnvironment.askForType(qualifiedType);
             FieldBinding fieldBinding = new FieldBinding(
                     RECORDER_FIELD_NAME,
                     binaryTypeBinding,
-                    ClassFileConstants.AccPublic | ClassFileConstants.AccStatic /*| ClassFileConstants.AccFinal*/,
+                    ClassFileConstants.AccPublic | ClassFileConstants.AccStatic | ClassFileConstants.AccFinal,
                     type.binding, // bind to enclosing class,
-                    Constant.NotAConstant);
+                    null /*Constant.NotAConstant*/);
 
 //            SourceTypeBinding sourceFieldBinding = new SourceTypeBinding(qualifiedType, null, type.scope);
 //            FieldBinding fieldBinding2 = sourceFieldBinding.resolveTypeFor(fieldBinding);
 //            recorderField.type.resolveType(type.scope);
             recorderField.binding = fieldBinding;
-            recorderField.resolve(type.staticInitializerScope);
+            type.binding.addField(fieldBinding);
 
             // com.atlassian.clover.Clover.getRecorder(
             //   String initChars, final long dbVersion, final long cfgbits, final int maxNumElements,
@@ -147,6 +150,20 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
             // add new field
             newFields[newFields.length - 1] = recorderField;
             type.fields = newFields;
+        }
+    }
+
+    private Parser getParser() {
+        try {
+            Field compilerField = originalAdapter.getClass().getDeclaredField("compiler");
+            compilerField.setAccessible(true);
+            org.aspectj.org.eclipse.jdt.internal.compiler.Compiler compiler =
+                    (org.aspectj.org.eclipse.jdt.internal.compiler.Compiler) compilerField.get(originalAdapter);
+            return compiler.parser; //org.aspectj.org.eclipse.jdt.internal.compiler.parser.Parser
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
     }
 }
