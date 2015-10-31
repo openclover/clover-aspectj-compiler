@@ -323,6 +323,12 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     // helper methods
 
     protected void endVisitStatement(Statement genericStatement, BlockScope blockScope) {
+        // do not instrument statements related with initialization of class' fields
+        if (blockScope instanceof MethodScope
+                && ((MethodScope) blockScope).referenceContext instanceof TypeDeclaration) {
+            return;
+        }
+
         Pair<Integer, Integer> lineColStart = charIndexToLineCol(genericStatement.sourceStart);
         Pair<Integer, Integer> lineColEnd = charIndexToLineCol(genericStatement.sourceEnd);
         FullStatementInfo statementInfo = session.addStatement(

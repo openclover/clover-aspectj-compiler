@@ -8,7 +8,8 @@ import org.jetbrains.annotations.Nullable;
 }
 
 public final class A {
-    static int PI = 314;
+    int PI = 314; // do not instrument it
+    static String name = "Marek".toLowerCase(); // do not instrument it
 //    public static final com_atlassian_clover.CoverageRecorder $CLV_Z = null; /*com_atlassian_clover.Clover.getRecorder(
 //        ".clover/clover2.db", 123L, 456L, 789, null, null);*/
 
