@@ -32,7 +32,8 @@ public class CloverAjcTest {
                 // AJC stuff
                 "-sourceroots", SOURCE_DIR,
                 "-d", TARGET_CLASSES_DIR,
-                "-noExit"
+                "-noExit",
+                "-1.5" // source/target=1.5
         };
         List<String> failures = Lists.newArrayList();
         List<String> errors = Lists.newArrayList();
@@ -50,18 +51,20 @@ public class CloverAjcTest {
         System.out.println(StringUtils.join(infos, "\n"));
         System.out.println("=== END ===");
 
-        assertTrue(new File(TARGET_CLASSES_DIR, "introduction/CloneablePoint.class").exists());
+        assertTrue(new File(TARGET_CLASSES_DIR, "introduction/A.class").exists());
+//        assertTrue(new File(TARGET_CLASSES_DIR, "introduction/CloneablePoint.class").exists());
         assertTrue(new File(CLOVER_DB_PATH).exists());
 
         // run classes
         String M2 = "/Users/mparfianowicz/.m2/repository/";
-        String CLASSPATH = M2 + "org/aspectj/aspectjrt/1.8.4/aspectjrt-1.8.4.jar;"
-                + M2 + "com/atlassian/clover/clover/4.0.6/clover-4.0.6.jar;"
+        String CLASSPATH = M2 + "org/aspectj/aspectjrt/1.8.4/aspectjrt-1.8.4.jar" + File.pathSeparator
+                + M2 + "com/atlassian/clover/clover/4.0.6/clover-4.0.6.jar" + File.pathSeparator
                 + TARGET_CLASSES_DIR;
-        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.CloneablePoint");
-        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.ComparablePoint");
-        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.HashablePoint");
-        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.Point");
+        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.A");
+//        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.CloneablePoint");
+//        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.ComparablePoint");
+//        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.HashablePoint");
+//        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.Point");
 
         // generate html report
         CloverStartup.loadLicense(Logger.getInstance());
@@ -69,12 +72,10 @@ public class CloverAjcTest {
                 "-i", CLOVER_DB_PATH,
                 "-o", CLOVER_REPORT_PATH,
                 "-a",
-                "-e",
-                "-d"
+                "-e"
         };
         int result = HtmlReporter.runReport(reporterArgs);
         assertEquals(0, result);
         assertTrue(new File(CLOVER_REPORT_PATH, "dashboard.html").exists());
     }
-
 }
