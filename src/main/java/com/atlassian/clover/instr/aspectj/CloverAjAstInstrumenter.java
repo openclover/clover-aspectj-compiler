@@ -63,6 +63,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
     private CharToLineColMapper lineColMapper;
 
+    /** Whether to have method-level or statement-level instrumentation */
+    private boolean instrumentStatements = false;
+
     public CloverAjAstInstrumenter(InstrumentationSession session) {
         this.session = session;
     }
@@ -88,14 +91,19 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     private String packageNameToString(char[][] currentPackageName) {
+        String name = qualifiedNameToString(currentPackageName);
+        return name.isEmpty() ? PackageInfo.DEFAULT_PACKAGE_NAME : name;
+    }
+
+    private String qualifiedNameToString(char[][] qualifiedName) {
         String name = "";
-        for (int i = 0; i < currentPackageName.length; i++) {
-            name += String.valueOf(currentPackageName[i]);
-            if (i < currentPackageName.length - 1) {
+        for (int i = 0; i < qualifiedName.length; i++) {
+            name += String.valueOf(qualifiedName[i]);
+            if (i < qualifiedName.length - 1) {
                 name += ".";
             }
         }
-        return name.isEmpty() ? PackageInfo.DEFAULT_PACKAGE_NAME : name;
+        return name;
     }
 
     @Override
@@ -157,7 +165,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         final List<AnnotationImpl> cloverAnnotations = new ArrayList<AnnotationImpl>();
         if (annotations != null) {
             for (Annotation annotation : annotations) {
-                AnnotationImpl cloverAnnotation = new AnnotationImpl(packageNameToString(annotation.type.getTypeName()));
+                AnnotationImpl cloverAnnotation = new AnnotationImpl(qualifiedNameToString(annotation.type.getTypeName()));
                 for (MemberValuePair mvp : annotation.memberValuePairs()) {
                     // TODO handle also ArrayAnnotationValue; currently we store arrays as simple strings, e.g. "{ 1, 2, 3 }"
                     cloverAnnotation.put(
@@ -365,6 +373,10 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     // helper methods
 
     protected void endVisitStatement(Statement genericStatement, BlockScope blockScope) {
+        if (!instrumentStatements) {
+            return;
+        }
+
         // do not instrument statements related with initialization of class' fields
         if (blockScope instanceof MethodScope
                 && ((MethodScope) blockScope).referenceContext instanceof TypeDeclaration) {
@@ -382,8 +394,18 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 LanguageConstruct.Builtin.STATEMENT);
         int index = statementInfo.getDataIndex();
 
-        // TODO REWRITE NODE
+        // Rewrite node into "$CLV_R.inc(index); original_statement;"
 
+        // $CLV_R.inc(index);
+        final IntLiteral indexLiteral = IntLiteral.buildIntLiteral(
+                Integer.toString(index).toCharArray(), 0, 0);
+        final MessageSend incCall = new MessageSend();
+        incCall.receiver = new SingleNameReference(CloverAjCompilerAdapter.RECORDER_FIELD_NAME, 0);
+        incCall.selector = "inc".toCharArray();
+        incCall.arguments = new Expression[] { indexLiteral };
+
+        // TODO seems that we are visiting statements added by method node rewrite (inc,maybeFlush)
+        // TODO shall we rewrite it or rewrite all statements in a method node?
     }
 
     protected MethodSignature extractMethodSignature(MethodDeclaration methodDeclaration) {
@@ -402,7 +424,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         if (types != null) {
             final String[] names = new String[types.length];
             for (int i = 0; i < types.length; i++) {
-                names[i] = packageNameToString(types[i].getTypeName());
+                names[i] = qualifiedNameToString(types[i].getTypeName());
             }
             return names;
         }
