@@ -1,19 +1,23 @@
 package com.atlassian.clover.instr.aspectj;
 
+import clover.org.apache.commons.lang3.StringUtils;
 import com.atlassian.clover.api.instrumentation.InstrumentationSession;
 import com.atlassian.clover.api.registry.MethodInfo;
 import com.atlassian.clover.api.registry.PackageInfo;
 import com.atlassian.clover.context.ContextSet;
 import com.atlassian.clover.registry.FixedSourceRegion;
+import com.atlassian.clover.registry.entities.AnnotationImpl;
 import com.atlassian.clover.registry.entities.FullStatementInfo;
 import com.atlassian.clover.registry.entities.MethodSignature;
 import com.atlassian.clover.registry.entities.Modifier;
 import com.atlassian.clover.registry.entities.Modifiers;
 import com.atlassian.clover.registry.entities.Parameter;
+import com.atlassian.clover.registry.entities.StringifiedAnnotationValue;
 import com.atlassian.clover.spi.lang.LanguageConstruct;
 import com.atlassian.clover.util.collections.Pair;
 import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Annotation;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Assignment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CaseStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
@@ -23,6 +27,7 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ForStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ForeachStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.IfStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.LocalDeclaration;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MemberValuePair;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MessageSend;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ReturnStatement;
@@ -30,6 +35,8 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Statement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.SwitchStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TryStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeParameter;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TypeReference;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.WhileStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.BlockScope;
@@ -38,7 +45,9 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.CompilationUnitScope
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.MethodScope;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -105,35 +114,61 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         session.enterClass(
                 new String(typeDeclaration.name),
                 new FixedSourceRegion(lineCol.first, lineCol.second),
-                createFrom(typeDeclaration),
+                createFrom(typeDeclaration.modifiers, typeDeclaration.annotations),
                 false,
                 false,
                 false);
         return super.visit(typeDeclaration, scope);
     }
 
-    private Modifiers createFrom(TypeDeclaration typeDeclaration) {
-        // AJC to Clover constants mapping
-        final Map<Integer, Integer> AJC_TO_CLOVER = new HashMap<Integer, Integer>();
+    // AJC to Clover constants mapping
+    static final Map<Integer, Integer> AJC_TO_CLOVER = new HashMap<Integer, Integer>();
+
+    static {
         AJC_TO_CLOVER.put(ClassFileConstants.AccPublic, Modifier.PUBLIC);
         AJC_TO_CLOVER.put(ClassFileConstants.AccProtected, Modifier.PROTECTED);
-        // no AccPackage
+        // no ClassFileConstants.AccPackage
         AJC_TO_CLOVER.put(ClassFileConstants.AccPrivate, Modifier.PRIVATE);
         AJC_TO_CLOVER.put(ClassFileConstants.AccAbstract, Modifier.ABSTRACT);
         AJC_TO_CLOVER.put(ClassFileConstants.AccStatic, Modifier.STATIC);
         AJC_TO_CLOVER.put(ClassFileConstants.AccFinal, Modifier.FINAL);
-        // Note: Modifier.DEFAULT is for default methods in interfaces
+        AJC_TO_CLOVER.put(ClassFileConstants.AccInterface, Modifier.INTERFACE);
+        AJC_TO_CLOVER.put(ClassFileConstants.AccNative, Modifier.NATIVE);
+        AJC_TO_CLOVER.put(ClassFileConstants.AccSynchronized, Modifier.SYNCHRONIZED);
+        AJC_TO_CLOVER.put(ClassFileConstants.AccTransient, Modifier.TRANSIENT);
+        AJC_TO_CLOVER.put(ClassFileConstants.AccVolatile, Modifier.VOLATILE);
+        // note: Modifier.DEFAULT is an extra Clover one to mark default methods in interfaces (JDK8)
+    }
 
+    private Modifiers createFrom(int ajcModifiers, Annotation[] annotations) {
         // convert from AJC to Clover ones
-        int modifiers = 0;
+        int cloverModifiers = 0;
         for (Integer ajcModifier : AJC_TO_CLOVER.keySet()) {
-            if ( (typeDeclaration.modifiers & ajcModifier) != 0) {
-                modifiers |= AJC_TO_CLOVER.get(ajcModifier);
+            if ( (ajcModifiers & ajcModifier) != 0) {
+                cloverModifiers |= AJC_TO_CLOVER.get(ajcModifier);
             }
         }
 
-        // TODO handle annotations
-        return Modifiers.createFrom(modifiers, null);
+        // convert from AJC to Clover ones
+        final List<AnnotationImpl> cloverAnnotations = new ArrayList<AnnotationImpl>();
+        if (annotations != null) {
+            for (Annotation annotation : annotations) {
+                AnnotationImpl cloverAnnotation = new AnnotationImpl(packageNameToString(annotation.type.getTypeName()));
+                for (MemberValuePair mvp : annotation.memberValuePairs()) {
+                    // TODO handle also ArrayAnnotationValue; currently we store arrays as simple strings, e.g. "{ 1, 2, 3 }"
+                    cloverAnnotation.put(
+                            String.valueOf(mvp.name),
+                            new StringifiedAnnotationValue(mvp.value.toString()));
+                }
+                cloverAnnotations.add(cloverAnnotation);
+            }
+
+            return Modifiers.createFrom(
+                    cloverModifiers,
+                    cloverAnnotations.toArray(new AnnotationImpl[cloverAnnotations.size()]));
+        }
+
+        return Modifiers.createFrom(cloverModifiers, null);
     }
 
     @Override
@@ -307,12 +342,38 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         // TODO create a full method signature (annotations, modifiers etc)
         return new MethodSignature(
                 new String(methodDeclaration.selector),
-                null,
+                createTypeParametersFrom(methodDeclaration.typeParameters),
                 methodDeclaration.returnType.toString(),
                 new Parameter[0],
-                new String[0],
-                Modifiers.createFrom(Modifier.PUBLIC, null));
+                createNamesFrom(methodDeclaration.thrownExceptions),
+                createFrom(methodDeclaration.modifiers, methodDeclaration.annotations));
+
     }
+
+    private String[] createNamesFrom(TypeReference[] types) {
+        if (types != null) {
+            final String[] names = new String[types.length];
+            for (int i = 0; i < types.length; i++) {
+                names[i] = packageNameToString(types[i].getTypeName());
+            }
+            return names;
+        }
+
+        return null;
+    }
+
+    private String createTypeParametersFrom(TypeParameter[] types) {
+        if (types != null) {
+            final String[] names = new String[types.length];
+            for (int i = 0; i < types.length; i++) {
+                names[i] = types[i].toString();
+            }
+            return "<" + StringUtils.join(names, ",") + ">";
+        }
+
+        return null;
+    }
+
 
     protected Pair<Integer, Integer> charIndexToLineCol(int charIndex) {
         // convert char index to line:column

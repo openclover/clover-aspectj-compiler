@@ -94,6 +94,11 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
 
     private void addCoverageRecorderField(CompilationUnitDeclaration unit) {
         for (TypeDeclaration type : unit.types) {
+            // do not add coverage recorder for annotation types
+            if ((type.modifiers & ClassFileConstants.AccAnnotation) != 0) {
+                continue;
+            }
+
             final FieldDeclaration[] newFields;
             if (type.fields != null) {
                 newFields = new FieldDeclaration[type.fields.length + 1];
@@ -121,6 +126,7 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
             recorderField.binding = fieldBinding;
             type.binding.addField(fieldBinding);
 
+            // TODO field is set to null if we don't have any static initialization declared in the code
             // com.atlassian.clover.Clover.getRecorder(
             //   String initChars, final long dbVersion, final long cfgbits, final int maxNumElements,
             //   CloverProfile[] profiles, final String[] nvpProperties)
