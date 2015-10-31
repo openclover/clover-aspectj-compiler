@@ -19,18 +19,22 @@ import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Annotation;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Assignment;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Block;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CaseStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.DoStatement;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Expression;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.FieldDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ForStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ForeachStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.IfStatement;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.IntLiteral;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.LocalDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MemberValuePair;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MessageSend;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ReturnStatement;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.SingleNameReference;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Statement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.SwitchStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.TryStatement;
@@ -196,9 +200,47 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 LanguageConstruct.Builtin.METHOD);
         int index = methodInfo.getDataIndex();
 
-        // TODO REWRITE THE NODE
+        boolean ret = super.visit(methodDeclaration, scope);
 
-        return super.visit(methodDeclaration, scope);
+        // Rewrite the method's code into sth like this
+        // try { $CLV_R.inc(index);
+        //   ...original code...
+        // } finally {
+        //    $CLV_R.maybeFlush();
+        // }
+
+        // TODO test it with constructors and super() call
+
+        // $CLV_R.maybeFlush();
+        final MessageSend maybeFlushCall = new MessageSend();
+        maybeFlushCall.receiver = new SingleNameReference(CloverAjCompilerAdapter.RECORDER_FIELD_NAME, 0);
+        maybeFlushCall.selector = "maybeFlush".toCharArray();
+
+        // $CLV_R.inc(index);
+        final IntLiteral indexLiteral = IntLiteral.buildIntLiteral(
+                Integer.toString(index).toCharArray(), 0, 0);
+        final MessageSend incCall = new MessageSend();
+        incCall.receiver = new SingleNameReference(CloverAjCompilerAdapter.RECORDER_FIELD_NAME, 0);
+        incCall.selector = "inc".toCharArray();
+        incCall.arguments = new Expression[] { indexLiteral };
+
+        // $CLV_R.inc(index) + original statements
+        Statement[] statementsPlusOne = new Statement[methodDeclaration.statements.length + 1];
+        statementsPlusOne[0] = incCall;
+        System.arraycopy(methodDeclaration.statements, 0, statementsPlusOne, 1, methodDeclaration.statements.length);
+
+        // try-finally block
+        final TryStatement tryStatement = new TryStatement();
+        tryStatement.tryBlock = new Block(1);
+        tryStatement.tryBlock.statements = statementsPlusOne;
+        tryStatement.finallyBlock = new Block(0);
+        tryStatement.finallyBlock.statements = new Statement[1];
+        tryStatement.finallyBlock.statements[0] = maybeFlushCall;
+
+        // swap method's code with the new one
+        methodDeclaration.statements = new Statement[] { tryStatement };
+
+        return ret;
     }
 
     @Override
