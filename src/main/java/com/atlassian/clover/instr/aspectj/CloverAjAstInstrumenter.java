@@ -4,6 +4,7 @@ import clover.org.apache.commons.lang3.StringUtils;
 import com.atlassian.clover.api.instrumentation.InstrumentationSession;
 import com.atlassian.clover.api.registry.MethodInfo;
 import com.atlassian.clover.api.registry.PackageInfo;
+import com.atlassian.clover.cfg.instr.InstrumentationLevel;
 import com.atlassian.clover.context.ContextSet;
 import com.atlassian.clover.registry.FixedSourceRegion;
 import com.atlassian.clover.registry.PersistentAnnotationValue;
@@ -65,19 +66,21 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
     private final InstrumentationSession session;
 
+    /** Whether to have method-level or statement-level instrumentation */
+    private final InstrumentationLevel instrumentationLevel;
+
     private CharToLineColMapper lineColMapper;
 
-    /** Whether to have method-level or statement-level instrumentation */
-    private boolean instrumentStatements = false;
-
-    public CloverAjAstInstrumenter(InstrumentationSession session) {
+    public CloverAjAstInstrumenter(final InstrumentationSession session,
+                                   final InstrumentationLevel instrumentationLevel) {
         this.session = session;
+        this.instrumentationLevel = instrumentationLevel;
     }
 
     // instrument file
 
     @Override
-    public boolean visit(CompilationUnitDeclaration compilationUnitDeclaration, CompilationUnitScope scope) {
+    public boolean visit(final CompilationUnitDeclaration compilationUnitDeclaration, final CompilationUnitScope scope) {
         // parse current source file and gather information about line endings
         lineColMapper = new CharToLineColMapper(new File(new String(compilationUnitDeclaration.getFileName())));
 
@@ -94,12 +97,12 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         return super.visit(compilationUnitDeclaration, scope);
     }
 
-    private String packageNameToString(char[][] currentPackageName) {
-        String name = qualifiedNameToString(currentPackageName);
+    private String packageNameToString(final char[][] currentPackageName) {
+        final String name = qualifiedNameToString(currentPackageName);
         return name.isEmpty() ? PackageInfo.DEFAULT_PACKAGE_NAME : name;
     }
 
-    private String qualifiedNameToString(char[][] qualifiedName) {
+    private String qualifiedNameToString(final char[][] qualifiedName) {
         String name = "";
         for (int i = 0; i < qualifiedName.length; i++) {
             name += String.valueOf(qualifiedName[i]);
@@ -111,12 +114,12 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     @Override
-    public boolean visit(FieldDeclaration fieldDeclaration, MethodScope scope) {
+    public boolean visit(final FieldDeclaration fieldDeclaration, final MethodScope scope) {
         return super.visit(fieldDeclaration, scope);
     }
 
     @Override
-    public void endVisit(CompilationUnitDeclaration compilationUnitDeclaration, CompilationUnitScope scope) {
+    public void endVisit(final CompilationUnitDeclaration compilationUnitDeclaration, final CompilationUnitScope scope) {
         super.endVisit(compilationUnitDeclaration, scope);
         // parse current source file and gather information about line endings
         session.exitFile();
@@ -125,7 +128,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     // instrument top-level class
 
     @Override
-    public boolean visit(TypeDeclaration typeDeclaration, CompilationUnitScope scope) {
+    public boolean visit(final TypeDeclaration typeDeclaration, final CompilationUnitScope scope) {
         final Pair<Integer, Integer> lineCol = charIndexToLineCol(typeDeclaration.declarationSourceStart);
         session.enterClass(
                 new String(typeDeclaration.name),
@@ -156,7 +159,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         // note: Modifier.DEFAULT is an extra Clover one to mark default methods in interfaces (JDK8)
     }
 
-    private Modifiers createModifiersAndAnnotationsFrom(int ajcModifiers, Annotation[] annotations) {
+    private Modifiers createModifiersAndAnnotationsFrom(final int ajcModifiers, final Annotation[] annotations) {
         // convert from AJC to Clover ones
         int cloverModifiers = 0;
         for (Integer ajcModifier : AJC_TO_CLOVER.keySet()) {
@@ -194,7 +197,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * @param mvpValue Expression from MemberValuePair.value
      * @return PersistentAnnotationValue
      */
-    public PersistentAnnotationValue createAnnotationValueFrom(Expression mvpValue) {
+    public PersistentAnnotationValue createAnnotationValueFrom(final Expression mvpValue) {
         if (mvpValue instanceof ArrayInitializer) {
             final ArrayInitializer mvpArray = (ArrayInitializer) mvpValue;
             final ArrayAnnotationValue arrayValue = new ArrayAnnotationValue();
@@ -208,7 +211,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     @Override
-    public void endVisit(TypeDeclaration typeDeclaration, CompilationUnitScope scope) {
+    public void endVisit(final TypeDeclaration typeDeclaration, final CompilationUnitScope scope) {
         super.endVisit(typeDeclaration, scope);
         Pair<Integer, Integer> lineCol = charIndexToLineCol(typeDeclaration.declarationSourceEnd);
         session.exitClass(lineCol.first, lineCol.second);
@@ -217,7 +220,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     // instrument methods
 
     @Override
-    public boolean visit(MethodDeclaration methodDeclaration, ClassScope scope) {
+    public boolean visit(final MethodDeclaration methodDeclaration, final ClassScope scope) {
         final Pair<Integer, Integer> lineCol = charIndexToLineCol(methodDeclaration.declarationSourceStart);
         final MethodInfo methodInfo = session.enterMethod(
                 new ContextSet(),
@@ -230,9 +233,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 false,
                 1,
                 LanguageConstruct.Builtin.METHOD);
-        int index = methodInfo.getDataIndex();
+        final int index = methodInfo.getDataIndex();
 
-        boolean ret = super.visit(methodDeclaration, scope);
+        final boolean ret = super.visit(methodDeclaration, scope);
 
         // Rewrite the method's code into sth like this
         // try { $CLV_R.inc(index);
@@ -282,9 +285,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     @Override
-    public void endVisit(MethodDeclaration methodDeclaration, ClassScope scope) {
+    public void endVisit(final MethodDeclaration methodDeclaration, final ClassScope scope) {
         super.endVisit(methodDeclaration, scope);
-        Pair<Integer, Integer> lineCol = charIndexToLineCol(methodDeclaration.declarationSourceEnd);
+        final Pair<Integer, Integer> lineCol = charIndexToLineCol(methodDeclaration.declarationSourceEnd);
         session.exitMethod(lineCol.first, lineCol.second);
     }
 
@@ -296,7 +299,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Variable assignment, e.g. "i = 2"
      */
     @Override
-    public void endVisit(Assignment assignment, BlockScope scope) {
+    public void endVisit(final Assignment assignment, final BlockScope scope) {
         endVisitStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
@@ -305,7 +308,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Case block
      */
     @Override
-    public void endVisit(CaseStatement statement, BlockScope scope) {
+    public void endVisit(final CaseStatement statement, final BlockScope scope) {
         endVisitStatement(statement, scope);
         super.endVisit(statement, scope);
     }
@@ -314,7 +317,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Do-while loop
      */
     @Override
-    public void endVisit(DoStatement statement, BlockScope scope) {
+    public void endVisit(final DoStatement statement, final BlockScope scope) {
         endVisitStatement(statement, scope);
         super.endVisit(statement, scope);
     }
@@ -323,7 +326,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * For statement, e.g. "for (a=0; a < b; a++)"
      */
     @Override
-    public void endVisit(ForStatement statement, BlockScope scope) {
+    public void endVisit(final ForStatement statement, final BlockScope scope) {
         endVisitStatement(statement, scope);
         super.endVisit(statement, scope);
     }
@@ -332,7 +335,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Foreach statement, e.g. "for (line : lines)"
      */
     @Override
-    public void endVisit(ForeachStatement statement, BlockScope scope) {
+    public void endVisit(final ForeachStatement statement, final BlockScope scope) {
         endVisitStatement(statement, scope);
         super.endVisit(statement, scope);
     }
@@ -341,7 +344,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * If statement, e.g. "if (a < b) ..."
      */
     @Override
-    public void endVisit(IfStatement statement, BlockScope scope) {
+    public void endVisit(final IfStatement statement, final BlockScope scope) {
         endVisitStatement(statement, scope);
         super.endVisit(statement, scope);
     }
@@ -350,7 +353,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Local variable declaration, e.g. "Foo f = new Foo();"
      */
     @Override
-    public void endVisit(LocalDeclaration localDeclaration, BlockScope scope) {
+    public void endVisit(final LocalDeclaration localDeclaration, final BlockScope scope) {
         endVisitStatement(localDeclaration, scope);
         super.endVisit(localDeclaration, scope);
     }
@@ -359,7 +362,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Simple method call, e.g. "foo();"
      */
     @Override
-    public void endVisit(MessageSend messageSend, BlockScope scope) {
+    public void endVisit(final MessageSend messageSend, final BlockScope scope) {
         endVisitStatement(messageSend, scope);
         super.endVisit(messageSend, scope);
     }
@@ -368,7 +371,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Switch statement
      */
     @Override
-    public void endVisit(SwitchStatement assignment, BlockScope scope) {
+    public void endVisit(final SwitchStatement assignment, final BlockScope scope) {
         endVisitStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
@@ -377,7 +380,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Return statement, e.g. "return 2"
      */
     @Override
-    public void endVisit(ReturnStatement assignment, BlockScope scope) {
+    public void endVisit(final ReturnStatement assignment, final BlockScope scope) {
         endVisitStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
@@ -386,7 +389,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Return statement, e.g. "return 2"
      */
     @Override
-    public void endVisit(TryStatement assignment, BlockScope scope) {
+    public void endVisit(final TryStatement assignment, final BlockScope scope) {
         endVisitStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
@@ -395,15 +398,15 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * While loop
      */
     @Override
-    public void endVisit(WhileStatement statement, BlockScope scope) {
+    public void endVisit(final WhileStatement statement, final BlockScope scope) {
         endVisitStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
     // helper methods
 
-    protected void endVisitStatement(Statement genericStatement, BlockScope blockScope) {
-        if (!instrumentStatements) {
+    protected void endVisitStatement(final Statement genericStatement, final BlockScope blockScope) {
+        if (instrumentationLevel == InstrumentationLevel.METHOD) {
             return;
         }
 
@@ -413,16 +416,16 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
             return;
         }
 
-        Pair<Integer, Integer> lineColStart = charIndexToLineCol(genericStatement.sourceStart);
-        Pair<Integer, Integer> lineColEnd = charIndexToLineCol(genericStatement.sourceEnd);
-        FullStatementInfo statementInfo = session.addStatement(
+        final Pair<Integer, Integer> lineColStart = charIndexToLineCol(genericStatement.sourceStart);
+        final Pair<Integer, Integer> lineColEnd = charIndexToLineCol(genericStatement.sourceEnd);
+        final FullStatementInfo statementInfo = session.addStatement(
                 new ContextSet(),
                 new FixedSourceRegion(
                         lineColStart.first, lineColStart.second,
                         lineColEnd.first, lineColEnd.second),
                 1,
                 LanguageConstruct.Builtin.STATEMENT);
-        int index = statementInfo.getDataIndex();
+        final int index = statementInfo.getDataIndex();
 
         // Rewrite node into "$CLV_R.inc(index); original_statement;"
 
@@ -438,7 +441,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         // TODO shall we rewrite it or rewrite all statements in a method node?
     }
 
-    protected MethodSignature extractMethodSignature(MethodDeclaration methodDeclaration) {
+    protected MethodSignature extractMethodSignature(final MethodDeclaration methodDeclaration) {
         return new MethodSignature(
                 new String(methodDeclaration.selector),
                 createGenericTypeParametersFrom(methodDeclaration.typeParameters),
@@ -448,7 +451,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 createModifiersAndAnnotationsFrom(methodDeclaration.modifiers, methodDeclaration.annotations));
     }
 
-    private String createGenericTypeParametersFrom(TypeParameter[] types) {
+    private String createGenericTypeParametersFrom(final TypeParameter[] types) {
         if (types != null) {
             final String[] names = new String[types.length];
             for (int i = 0; i < types.length; i++) {
@@ -460,7 +463,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         return null;
     }
 
-    private String[] createNamesFrom(TypeReference[] types) {
+    private String[] createNamesFrom(final TypeReference[] types) {
         if (types != null) {
             final String[] names = new String[types.length];
             for (int i = 0; i < types.length; i++) {
@@ -472,7 +475,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         return null;
     }
 
-    private Parameter[] createParametersFrom(Argument[] arguments) {
+    private Parameter[] createParametersFrom(final Argument[] arguments) {
         if (arguments != null) {
             final Parameter[] parameters = new Parameter[arguments.length];
             for (int i = 0; i < arguments.length; i++) {
@@ -485,7 +488,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         return new Parameter[0];
     }
 
-    protected Pair<Integer, Integer> charIndexToLineCol(int charIndex) {
+    protected Pair<Integer, Integer> charIndexToLineCol(final int charIndex) {
         // convert char index to line:column
         if (lineColMapper != null) {
             return lineColMapper.getLineColFor(charIndex);

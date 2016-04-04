@@ -23,14 +23,16 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
     public static final char[] RECORDER_FIELD_NAME = "$CLV_R".toCharArray();
     private final ICompilerAdapter originalAdapter;
     private final InstrumentationSession session;
-    private final String initString;
+    private final AjInstrumentationConfig config;
     private final LookupEnvironment lookupEnvironment;
 
-    public CloverAjCompilerAdapter(ICompilerAdapter originalAdapter, InstrumentationSession session, String initString,
+    public CloverAjCompilerAdapter(ICompilerAdapter originalAdapter,
+                                   InstrumentationSession session,
+                                   AjInstrumentationConfig config,
                                    LookupEnvironment lookupEnvironment) {
         this.originalAdapter = originalAdapter;
         this.session = session;
-        this.initString = initString;
+        this.config = config;
         this.lookupEnvironment = lookupEnvironment;
     }
 
@@ -89,7 +91,7 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
 
     @Override
     public void beforeResolving(CompilationUnitDeclaration unit) {
-        unit.traverse(new CloverAjAstInstrumenter(session), unit.scope);
+        unit.traverse(new CloverAjAstInstrumenter(session, config.getInstrLevel()), unit.scope);
         originalAdapter.beforeResolving(unit);
     }
 
@@ -131,7 +133,7 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
             //   String initChars, final long dbVersion, final long cfgbits, final int maxNumElements,
             //   CloverProfile[] profiles, final String[] nvpProperties)
             String initializationSource = Clover.class.getName() + ".getRecorder(\""
-                    + initString + "\", "
+                    + config.getInitString() + "\", "
                     + session.getVersion() + "L, "
                     + "0L,"
                     + session.getCurrentFileMaxIndex() + ","

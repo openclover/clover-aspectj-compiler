@@ -1,13 +1,21 @@
 package org.aspectj.ajdt.ajc;
 
+import clover.com.google.common.collect.Iterables;
+import clover.com.google.common.collect.Lists;
+import com.atlassian.clover.CloverInstr;
 import com.atlassian.clover.api.CloverException;
 import com.atlassian.clover.api.instrumentation.InstrumentationSession;
+import com.atlassian.clover.cfg.instr.InstrumentationLevel;
+import com.atlassian.clover.instr.aspectj.AjInstrumentationConfig;
 import com.atlassian.clover.instr.aspectj.CloverAjBuildManager;
 import com.atlassian.clover.registry.Clover2Registry;
+import com.atlassian.clover.util.collections.Pair;
 import org.aspectj.bridge.IMessageHandler;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 
 /**
  *
@@ -20,16 +28,14 @@ public class CloverAjdtCommand extends AjdtCommand {
 
     @Override
     public boolean runCommand(String[] args, IMessageHandler handler) {
-        // TODO fetch initstring from args
-        final String initString = ".clover/clover.db";
+        final Pair<AjInstrumentationConfig, List<String>> configAndArgs = parseConfigurationOptions(args);
 
         try {
-            createCloverRegistry(initString);
+            createCloverRegistry(configAndArgs.first.getInitString());
             startInstrumentation("UTF-8");
 
-            buildManager = new CloverAjBuildManager(handler, session, initString);
-            savedArgs = new String[args.length];
-            System.arraycopy(args, 0, savedArgs, 0, savedArgs.length);
+            buildManager = new CloverAjBuildManager(handler, session, configAndArgs.first);
+            savedArgs = Iterables.toArray(configAndArgs.second, String.class); // pass filtered arguments for AJC
             boolean ret = doCommand(handler, false);
 
             endInstrumentation(true);
@@ -38,6 +44,38 @@ public class CloverAjdtCommand extends AjdtCommand {
             e.printStackTrace();
         }
         return false;
+    }
+
+    /**
+     * Parse Clover-related settings. It handles a subset of CloverInstr options. We shall avoid any conflicts
+     * with original AJC options https://eclipse.org/aspectj/doc/next/devguide/ajc-ref.html
+     *
+     * @param args
+     * @return Pair of: AjInstrumentationConfig (Clover settings) and List&lt;String&gt; (arguments for AJC)
+     * @see CloverInstr#processArgs(java.lang.String[])
+     */
+    protected Pair<AjInstrumentationConfig, List<String>> parseConfigurationOptions(String[] args) {
+        final AjInstrumentationConfig config = new AjInstrumentationConfig();
+        final List<String> ajcArgs = Lists.newArrayList();
+
+        // See also: com.atlassian.clover.CloverInstr#processArgs(String[])
+        int i = 0;
+        while (i < args.length) {
+            if (args[i].equals("-i") || args[i].equals("--initstring")) {
+                i++;
+                config.setInitstring(args[i]);
+            } else if (args[i].equals("--instrlevel")) {
+                i++;
+                String instr = args[i].toUpperCase(Locale.US);
+                config.setInstrLevel(InstrumentationLevel.valueOf(instr));
+            } else {
+                // not Clover one? pass it to AJC
+                ajcArgs.add(args[i]);
+            }
+            i++;
+        }
+
+        return Pair.of(config, ajcArgs);
     }
 
     protected void createCloverRegistry(String initString) throws CloverException {

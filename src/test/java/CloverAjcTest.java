@@ -19,8 +19,7 @@ import static org.junit.Assert.assertTrue;
 public class CloverAjcTest {
 
     public static final String AJC_EXAMPLE_DIR = FileUtils.getPlatformSpecificPath("src/test/resources/ajc-example");
-    // TODO CoverAjc does not handle -i <inistring> yet. Replace by: FileUtils.getPlatformSpecificPath(AJC_EXAMPLE_DIR + "/target/clover/db/clover.db");
-    public static final String CLOVER_DB_PATH = FileUtils.getPlatformSpecificPath(".clover/clover.db");
+    public static final String CLOVER_DB_PATH = FileUtils.getPlatformSpecificPath(AJC_EXAMPLE_DIR + "/target/clover/db/clover.db");
     public static final String CLOVER_REPORT_PATH = FileUtils.getPlatformSpecificPath(AJC_EXAMPLE_DIR + "/target/clover/report");
     public static final String SOURCE_DIR = FileUtils.getPlatformSpecificPath(AJC_EXAMPLE_DIR + "/src");
     public static final String TARGET_CLASSES_DIR = FileUtils.getPlatformSpecificPath(AJC_EXAMPLE_DIR + "/target/classes");
@@ -30,7 +29,8 @@ public class CloverAjcTest {
         // build aspectj project with clover
         final String[] compilerArgs = {
                 // Clover stuff
-                // TODO "-i", CLOVER_DB_PATH,
+                "--initstring", CLOVER_DB_PATH,
+                "--instrlevel", "method",
                 // AJC stuff
                 "-sourceroots", SOURCE_DIR,
                 "-d", TARGET_CLASSES_DIR,

@@ -11,17 +11,17 @@ import org.aspectj.bridge.IMessageHandler;
 public class CloverAjBuildManager extends AjBuildManager {
 
     private final InstrumentationSession session;
-    private final String initString;
+    private final AjInstrumentationConfig config;
 
-    public CloverAjBuildManager(IMessageHandler holder, InstrumentationSession session, String initString) {
+    public CloverAjBuildManager(IMessageHandler holder, InstrumentationSession session, AjInstrumentationConfig config) {
         super(holder);
         this.session = session;
-        this.initString = initString;
+        this.config = config;
     }
 
     @Override
     public ICompilerAdapter getAdapter(org.aspectj.org.eclipse.jdt.internal.compiler.Compiler forCompiler) {
-        return new CloverAjCompilerAdapter(super.getAdapter(forCompiler), session, initString, forCompiler.lookupEnvironment);
+        return new CloverAjCompilerAdapter(super.getAdapter(forCompiler), session, config, forCompiler.lookupEnvironment);
     }
 
 }
