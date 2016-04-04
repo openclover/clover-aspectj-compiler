@@ -3,6 +3,7 @@ package com.atlassian.clover.instr.aspectj;
 import com.atlassian.clover.api.instrumentation.InstrumentationSession;
 import com_atlassian_clover.Clover;
 import org.aspectj.ajdt.internal.compiler.ICompilerAdapter;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.AbstractMethodDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.FieldDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.QualifiedTypeReference;
@@ -126,7 +127,6 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
             recorderField.binding = fieldBinding;
             type.binding.addField(fieldBinding);
 
-            // TODO field is set to null if we don't have any static initialization declared in the code
             // com.atlassian.clover.Clover.getRecorder(
             //   String initChars, final long dbVersion, final long cfgbits, final int maxNumElements,
             //   CloverProfile[] profiles, final String[] nvpProperties)
@@ -142,7 +142,23 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
             // add new field
             newFields[newFields.length - 1] = recorderField;
             type.fields = newFields;
+
+            // Note: the TypeDeclaration.addClinit() calls needClassInitMethod() which checks for presence of any static
+            // fields initializers etc and adds "<clinit>" method if necessary. As it was already called BEFORE we added
+            // our recorder field, we must call it again, if <clinit> is not present. Otherwise field won't initialize.
+            if (!isClinitDeclared(type)) {
+                type.addClinit();
+            }
         }
+    }
+
+    private boolean isClinitDeclared(final TypeDeclaration type) {
+        for (AbstractMethodDeclaration method : type.methods) {
+            if (method.isClinit()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Parser getParser() {
