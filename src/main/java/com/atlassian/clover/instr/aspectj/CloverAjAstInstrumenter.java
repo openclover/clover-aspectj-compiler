@@ -20,6 +20,7 @@ import com.atlassian.clover.util.collections.Pair;
 import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Annotation;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Argument;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ArrayInitializer;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Assignment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Block;
@@ -129,7 +130,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         session.enterClass(
                 new String(typeDeclaration.name),
                 new FixedSourceRegion(lineCol.first, lineCol.second),
-                createFrom(typeDeclaration.modifiers, typeDeclaration.annotations),
+                createModifiersAndAnnotationsFrom(typeDeclaration.modifiers, typeDeclaration.annotations),
                 false,
                 false,
                 false);
@@ -155,7 +156,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         // note: Modifier.DEFAULT is an extra Clover one to mark default methods in interfaces (JDK8)
     }
 
-    private Modifiers createFrom(int ajcModifiers, Annotation[] annotations) {
+    private Modifiers createModifiersAndAnnotationsFrom(int ajcModifiers, Annotation[] annotations) {
         // convert from AJC to Clover ones
         int cloverModifiers = 0;
         for (Integer ajcModifier : AJC_TO_CLOVER.keySet()) {
@@ -438,15 +439,25 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     protected MethodSignature extractMethodSignature(MethodDeclaration methodDeclaration) {
-        // TODO create a full method signature (annotations, modifiers etc)
         return new MethodSignature(
                 new String(methodDeclaration.selector),
-                createTypeParametersFrom(methodDeclaration.typeParameters),
+                createGenericTypeParametersFrom(methodDeclaration.typeParameters),
                 methodDeclaration.returnType.toString(),
-                new Parameter[0],
+                createParametersFrom(methodDeclaration.arguments),
                 createNamesFrom(methodDeclaration.thrownExceptions),
-                createFrom(methodDeclaration.modifiers, methodDeclaration.annotations));
+                createModifiersAndAnnotationsFrom(methodDeclaration.modifiers, methodDeclaration.annotations));
+    }
 
+    private String createGenericTypeParametersFrom(TypeParameter[] types) {
+        if (types != null) {
+            final String[] names = new String[types.length];
+            for (int i = 0; i < types.length; i++) {
+                names[i] = types[i].toString();
+            }
+            return "<" + StringUtils.join(names, ",") + ">";
+        }
+
+        return null;
     }
 
     private String[] createNamesFrom(TypeReference[] types) {
@@ -461,18 +472,18 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         return null;
     }
 
-    private String createTypeParametersFrom(TypeParameter[] types) {
-        if (types != null) {
-            final String[] names = new String[types.length];
-            for (int i = 0; i < types.length; i++) {
-                names[i] = types[i].toString();
+    private Parameter[] createParametersFrom(Argument[] arguments) {
+        if (arguments != null) {
+            final Parameter[] parameters = new Parameter[arguments.length];
+            for (int i = 0; i < arguments.length; i++) {
+                parameters[i] = new Parameter(arguments[i].type.toString(), new String(arguments[i].name));
             }
-            return "<" + StringUtils.join(names, ",") + ">";
+            return parameters;
         }
 
-        return null;
+        // Clover needs an empty array instead of null
+        return new Parameter[0];
     }
-
 
     protected Pair<Integer, Integer> charIndexToLineCol(int charIndex) {
         // convert char index to line:column
