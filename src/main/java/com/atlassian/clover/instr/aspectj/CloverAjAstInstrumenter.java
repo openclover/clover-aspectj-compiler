@@ -20,6 +20,7 @@ import com.atlassian.clover.spi.lang.LanguageConstruct;
 import com.atlassian.clover.util.collections.Pair;
 import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.AbstractMethodDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Annotation;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Argument;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ArrayInitializer;
@@ -27,6 +28,7 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Assignment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Block;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CaseStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ConstructorDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.DoStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Expression;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.FieldDeclaration;
@@ -217,25 +219,16 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         session.exitClass(lineCol.first, lineCol.second);
     }
 
-    // instrument methods
+    // instrument constructors
 
     @Override
-    public boolean visit(final MethodDeclaration methodDeclaration, final ClassScope scope) {
-        final Pair<Integer, Integer> lineCol = charIndexToLineCol(methodDeclaration.declarationSourceStart);
-        final MethodInfo methodInfo = session.enterMethod(
-                new ContextSet(),
-                new FixedSourceRegion(lineCol.first, lineCol.second),
-                extractMethodSignature(methodDeclaration),
-                methodDeclaration instanceof DeclareDeclaration,  // hack: 'declare' treat as test method to display a friendly name
-                methodDeclaration instanceof DeclareDeclaration
-                        ? ((DeclareDeclaration) methodDeclaration).declareDecl.toString() // hack: use static test name for 'declare'
-                        : null,  // no static test name
-                false,
-                1,
-                LanguageConstruct.Builtin.METHOD);
-        final int index = methodInfo.getDataIndex();
+    public boolean visit(ConstructorDeclaration constructorDeclaration, ClassScope scope) {
+        final MethodInfo methodInfo = enterConstructorOrMethod(
+                constructorDeclaration,
+                extractConstructorSignature(constructorDeclaration),
+                false, null);
 
-        final boolean ret = super.visit(methodDeclaration, scope);
+        final boolean ret = super.visit(constructorDeclaration, scope);
 
         // Rewrite the method's code into sth like this
         // try { $CLV_R.inc(index);
@@ -246,11 +239,88 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
         // TODO test it with constructors and super() call
 
-        // $CLV_R.maybeFlush();
-        final MessageSend maybeFlushCall = new MessageSend();
-        maybeFlushCall.receiver = new SingleNameReference(CloverAjCompilerAdapter.RECORDER_FIELD_NAME, 0);
-        maybeFlushCall.selector = "maybeFlush".toCharArray();
+        // $CLV_R.inc(index) + original statements
+        final int index = methodInfo.getDataIndex();
+        final Statement[] statementsPlusOne = insertStatementBefore(
+                createRecorderIncCall(index),
+                constructorDeclaration.statements);
 
+        // encapsulate it in try-finally block with coverage flushing
+        final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
+
+        // swap method's code with the new one
+        constructorDeclaration.statements = new Statement[] { tryBlock };
+
+        return ret;
+    }
+
+    @Override
+    public void endVisit(ConstructorDeclaration constructorDeclaration, ClassScope scope) {
+        super.endVisit(constructorDeclaration, scope);
+        exitConstructorOrMethod(constructorDeclaration);
+    }
+
+    protected MethodInfo enterConstructorOrMethod(final AbstractMethodDeclaration constrOrMethod,
+                                                  final MethodSignature signature,
+                                                  final boolean isTestMethod,
+                                                  final String staticTestName) {
+        final Pair<Integer, Integer> lineCol = charIndexToLineCol(constrOrMethod.declarationSourceStart);
+        return session.enterMethod(
+                new ContextSet(),
+                new FixedSourceRegion(lineCol.first, lineCol.second),
+                signature,
+                isTestMethod,
+                staticTestName,
+                false,
+                1,
+                LanguageConstruct.Builtin.METHOD);
+    }
+
+    protected void exitConstructorOrMethod(final AbstractMethodDeclaration constructorOrMethod) {
+        final Pair<Integer, Integer> lineCol = charIndexToLineCol(constructorOrMethod.declarationSourceEnd);
+        session.exitMethod(lineCol.first, lineCol.second);
+    }
+
+    // instrument methods
+
+    @Override
+    public boolean visit(final MethodDeclaration methodDeclaration, final ClassScope scope) {
+        final MethodInfo methodInfo = enterConstructorOrMethod(
+                methodDeclaration,
+                extractMethodSignature(methodDeclaration),
+                methodDeclaration instanceof DeclareDeclaration,  // hack: 'declare' treat as test method to display a friendly name
+                methodDeclaration instanceof DeclareDeclaration
+                        ? ((DeclareDeclaration) methodDeclaration).declareDecl.toString() // hack: use static test name for 'declare'
+                        : null  // no static test name
+                );
+
+        final boolean ret = super.visit(methodDeclaration, scope);
+
+        // Rewrite the method's code into sth like this
+        // try { $CLV_R.inc(index);
+        //   ...original code...
+        // } finally {
+        //    $CLV_R.maybeFlush();
+        // }
+
+        // TODO test it with super() call
+
+        // $CLV_R.inc(index) + original statements
+        final int index = methodInfo.getDataIndex();
+        final Statement[] statementsPlusOne = insertStatementBefore(
+                createRecorderIncCall(index),
+                methodDeclaration.statements);
+
+        // encapsulate it in try-finally block with coverage flushing
+        final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
+
+        // swap method's code with the new one
+        methodDeclaration.statements = new Statement[] { tryBlock };
+
+        return ret;
+    }
+
+    private MessageSend createRecorderIncCall(int index) {
         // $CLV_R.inc(index);
         final IntLiteral indexLiteral = IntLiteral.buildIntLiteral(
                 Integer.toString(index).toCharArray(), 0, 0);
@@ -259,36 +329,48 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         incCall.selector = "inc".toCharArray();
         incCall.arguments = new Expression[] { indexLiteral };
 
-        // $CLV_R.inc(index) + original statements
+        return incCall;
+    }
+
+    /**
+     * Put one statement before others. Handles null case.
+     * @param before non null
+     * @param original can be null
+     * @return Statement[]
+     */
+    private Statement[] insertStatementBefore(Statement before, Statement[] original) {
         final Statement[] statementsPlusOne;
-        if (methodDeclaration.statements != null) {
-            statementsPlusOne = new Statement[methodDeclaration.statements.length + 1];
-            statementsPlusOne[0] = incCall;
-            System.arraycopy(methodDeclaration.statements, 0, statementsPlusOne, 1, methodDeclaration.statements.length);
+        if (original != null) {
+            statementsPlusOne = new Statement[original.length + 1];
+            statementsPlusOne[0] = before;
+            System.arraycopy(original, 0, statementsPlusOne, 1, original.length);
         } else {
             statementsPlusOne = new Statement[1];
-            statementsPlusOne[0] = incCall;
+            statementsPlusOne[0] = before;
         }
+        return statementsPlusOne;
+    }
 
-        // try-finally block
+    private TryStatement createTryFinallyWithRecorderFlush(Statement[] statementsInTry) {
+        // $CLV_R.maybeFlush();
+        final MessageSend maybeFlushCall = new MessageSend();
+        maybeFlushCall.receiver = new SingleNameReference(CloverAjCompilerAdapter.RECORDER_FIELD_NAME, 0);
+        maybeFlushCall.selector = "maybeFlush".toCharArray();
+
         final TryStatement tryStatement = new TryStatement();
         tryStatement.tryBlock = new Block(1);
-        tryStatement.tryBlock.statements = statementsPlusOne;
+        tryStatement.tryBlock.statements = statementsInTry;
         tryStatement.finallyBlock = new Block(0);
         tryStatement.finallyBlock.statements = new Statement[1];
         tryStatement.finallyBlock.statements[0] = maybeFlushCall;
 
-        // swap method's code with the new one
-        methodDeclaration.statements = new Statement[] { tryStatement };
-
-        return ret;
+        return tryStatement;
     }
 
     @Override
     public void endVisit(final MethodDeclaration methodDeclaration, final ClassScope scope) {
         super.endVisit(methodDeclaration, scope);
-        final Pair<Integer, Integer> lineCol = charIndexToLineCol(methodDeclaration.declarationSourceEnd);
-        session.exitMethod(lineCol.first, lineCol.second);
+        exitConstructorOrMethod(methodDeclaration);
     }
 
     // instrument statements
@@ -439,6 +521,16 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
         // TODO seems that we are visiting statements added by method node rewrite (inc,maybeFlush)
         // TODO shall we rewrite it or rewrite all statements in a method node?
+    }
+
+    protected MethodSignature extractConstructorSignature(final ConstructorDeclaration constructorDeclaration) {
+        return new MethodSignature(
+                new String(constructorDeclaration.selector),
+                createGenericTypeParametersFrom(constructorDeclaration.typeParameters),
+                null, // no return type
+                createParametersFrom(constructorDeclaration.arguments),
+                createNamesFrom(constructorDeclaration.thrownExceptions),
+                createModifiersAndAnnotationsFrom(constructorDeclaration.modifiers, constructorDeclaration.annotations));
     }
 
     protected MethodSignature extractMethodSignature(final MethodDeclaration methodDeclaration) {
