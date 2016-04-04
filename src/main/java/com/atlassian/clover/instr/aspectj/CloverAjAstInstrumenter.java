@@ -237,7 +237,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         //    $CLV_R.maybeFlush();
         // }
 
-        // TODO test it with constructors and super() call
+        // Note: the super() call is stored in ConstructorDeclaration.constructorCall field instead of
+        // ConstructorDeclaration.statements, so we don't have to worry about when wrapping statements into the
+        // try-catch block - the super() call will be always the first statement
 
         // $CLV_R.inc(index) + original statements
         final int index = methodInfo.getDataIndex();
@@ -245,10 +247,10 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 createRecorderIncCall(index),
                 constructorDeclaration.statements);
 
-        // encapsulate it in try-finally block with coverage flushing
+        // encapsulate it in a try-finally block with coverage flushing
         final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
 
-        // swap method's code with the new one
+        // swap constructor's code with the new one
         constructorDeclaration.statements = new Statement[] { tryBlock };
 
         return ret;
@@ -303,15 +305,13 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         //    $CLV_R.maybeFlush();
         // }
 
-        // TODO test it with super() call
-
         // $CLV_R.inc(index) + original statements
         final int index = methodInfo.getDataIndex();
         final Statement[] statementsPlusOne = insertStatementBefore(
                 createRecorderIncCall(index),
                 methodDeclaration.statements);
 
-        // encapsulate it in try-finally block with coverage flushing
+        // encapsulate it in a try-finally block with coverage flushing
         final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
 
         // swap method's code with the new one
