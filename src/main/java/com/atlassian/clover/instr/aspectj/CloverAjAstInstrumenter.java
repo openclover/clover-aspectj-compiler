@@ -6,7 +6,9 @@ import com.atlassian.clover.api.registry.MethodInfo;
 import com.atlassian.clover.api.registry.PackageInfo;
 import com.atlassian.clover.context.ContextSet;
 import com.atlassian.clover.registry.FixedSourceRegion;
+import com.atlassian.clover.registry.PersistentAnnotationValue;
 import com.atlassian.clover.registry.entities.AnnotationImpl;
+import com.atlassian.clover.registry.entities.ArrayAnnotationValue;
 import com.atlassian.clover.registry.entities.FullStatementInfo;
 import com.atlassian.clover.registry.entities.MethodSignature;
 import com.atlassian.clover.registry.entities.Modifier;
@@ -18,6 +20,7 @@ import com.atlassian.clover.util.collections.Pair;
 import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Annotation;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ArrayInitializer;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Assignment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Block;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CaseStatement;
@@ -167,10 +170,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
             for (Annotation annotation : annotations) {
                 AnnotationImpl cloverAnnotation = new AnnotationImpl(qualifiedNameToString(annotation.type.getTypeName()));
                 for (MemberValuePair mvp : annotation.memberValuePairs()) {
-                    // TODO handle also ArrayAnnotationValue; currently we store arrays as simple strings, e.g. "{ 1, 2, 3 }"
                     cloverAnnotation.put(
                             String.valueOf(mvp.name),
-                            new StringifiedAnnotationValue(mvp.value.toString()));
+                            createAnnotationValueFrom(mvp.value));
                 }
                 cloverAnnotations.add(cloverAnnotation);
             }
@@ -181,6 +183,27 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         }
 
         return Modifiers.createFrom(cloverModifiers, null);
+    }
+
+    /**
+     * Convert AspectJ's node with an annotation value into one of Clover's:
+     *  - ArrayAnnotationValue  (e.g. "{ String.class, Object.class }")
+     *  - StringifiedAnnotationValue (e.g. "something")
+     *
+     * @param mvpValue Expression from MemberValuePair.value
+     * @return PersistentAnnotationValue
+     */
+    public PersistentAnnotationValue createAnnotationValueFrom(Expression mvpValue) {
+        if (mvpValue instanceof ArrayInitializer) {
+            final ArrayInitializer mvpArray = (ArrayInitializer) mvpValue;
+            final ArrayAnnotationValue arrayValue = new ArrayAnnotationValue();
+            for (Expression expression : mvpArray.expressions) {
+                arrayValue.put(null, createAnnotationValueFrom(expression));
+            }
+            return arrayValue;
+        } else {
+            return new StringifiedAnnotationValue(mvpValue.toString());
+        }
     }
 
     @Override
@@ -233,9 +256,15 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         incCall.arguments = new Expression[] { indexLiteral };
 
         // $CLV_R.inc(index) + original statements
-        Statement[] statementsPlusOne = new Statement[methodDeclaration.statements.length + 1];
-        statementsPlusOne[0] = incCall;
-        System.arraycopy(methodDeclaration.statements, 0, statementsPlusOne, 1, methodDeclaration.statements.length);
+        final Statement[] statementsPlusOne;
+        if (methodDeclaration.statements != null) {
+            statementsPlusOne = new Statement[methodDeclaration.statements.length + 1];
+            statementsPlusOne[0] = incCall;
+            System.arraycopy(methodDeclaration.statements, 0, statementsPlusOne, 1, methodDeclaration.statements.length);
+        } else {
+            statementsPlusOne = new Statement[1];
+            statementsPlusOne[0] = incCall;
+        }
 
         // try-finally block
         final TryStatement tryStatement = new TryStatement();
