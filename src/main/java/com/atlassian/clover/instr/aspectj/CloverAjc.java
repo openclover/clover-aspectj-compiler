@@ -39,14 +39,14 @@ public class CloverAjc extends org.aspectj.tools.ajc.Main {
         return holder.numMessages(IMessage.ERROR, true);
     }
 
-    private static void readMessages(IMessageHolder holder, IMessage.Kind kind, boolean orGreater, List sink) {
+    private static void readMessages(IMessageHolder holder, IMessage.Kind kind, boolean orGreater, List<String> sink) {
         if ((null == sink) || (null == holder)) {
             return;
         }
         IMessage[] messages = holder.getMessages(kind, orGreater);
         if (!LangUtil.isEmpty(messages)) {
-            for (int i = 0; i < messages.length; i++) {
-                sink.add(MessagePrinter.render(messages[i]));
+            for (IMessage message : messages) {
+                sink.add(MessagePrinter.render(message));
             }
         }
     }
