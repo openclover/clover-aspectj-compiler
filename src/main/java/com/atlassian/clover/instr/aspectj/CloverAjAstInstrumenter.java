@@ -18,6 +18,8 @@ import com.atlassian.clover.registry.entities.Parameter;
 import com.atlassian.clover.registry.entities.StringifiedAnnotationValue;
 import com.atlassian.clover.spi.lang.LanguageConstruct;
 import com.atlassian.clover.util.collections.Pair;
+import com_atlassian_clover.Clover;
+import org.aspectj.ajdt.internal.compiler.ICompilerAdapter;
 import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.AbstractMethodDeclaration;
@@ -40,6 +42,7 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.LocalDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MemberValuePair;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MessageSend;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.QualifiedTypeReference;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ReturnStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.SingleNameReference;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Statement;
@@ -53,9 +56,14 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.classfmt.ClassFileConstants
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.BlockScope;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.ClassScope;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.CompilationUnitScope;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.FieldBinding;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.MethodScope;
+import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.ReferenceBinding;
+import org.aspectj.org.eclipse.jdt.internal.compiler.parser.Parser;
 
 import java.io.File;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -66,17 +74,24 @@ import java.util.Map;
  */
 public class CloverAjAstInstrumenter extends ASTVisitor {
 
+    public static final char[] RECORDER_FIELD_NAME = "$CLV_R".toCharArray();
+    private final ICompilerAdapter originalAdapter;
+    private final LookupEnvironment lookupEnvironment;
+
     private final InstrumentationSession session;
 
-    /** Whether to have method-level or statement-level instrumentation */
-    private final InstrumentationLevel instrumentationLevel;
+    private final AjInstrumentationConfig config;
 
     private CharToLineColMapper lineColMapper;
 
     public CloverAjAstInstrumenter(final InstrumentationSession session,
-                                   final InstrumentationLevel instrumentationLevel) {
+                                   final AjInstrumentationConfig config,
+                                   final ICompilerAdapter originalAdapter,
+                                   final LookupEnvironment lookupEnvironment) {
         this.session = session;
-        this.instrumentationLevel = instrumentationLevel;
+        this.config = config;
+        this.originalAdapter = originalAdapter;
+        this.lookupEnvironment = lookupEnvironment;
     }
 
     // instrument file
@@ -115,6 +130,137 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         return name;
     }
 
+    private void addCoverageRecorderField(TypeDeclaration type, CompilationUnitDeclaration unit) {
+        // do not add coverage recorder for annotation types
+        if ((type.modifiers & ClassFileConstants.AccAnnotation) != 0) {
+            return;
+        }
+
+        final FieldDeclaration[] newFields;
+        if (type.fields != null) {
+            newFields = new FieldDeclaration[type.fields.length + 1];
+            System.arraycopy(type.fields, 0, newFields, 0, type.fields.length);
+        } else {
+            newFields = new FieldDeclaration[1];
+        }
+
+        final FieldDeclaration recorderField = new FieldDeclaration(RECORDER_FIELD_NAME, 0, 0);
+        recorderField.modifiers = ClassFileConstants.AccPublic | ClassFileConstants.AccStatic | ClassFileConstants.AccFinal;
+
+        char[][] qualifiedType = new char[2][];
+        qualifiedType[0] = "com_atlassian_clover".toCharArray();
+        qualifiedType[1] = "CoverageRecorder".toCharArray();
+        recorderField.type = new QualifiedTypeReference(qualifiedType, new long[2]);
+        recorderField.bits = type.bits;
+
+        final ReferenceBinding binaryTypeBinding = lookupEnvironment.askForType(qualifiedType);
+        FieldBinding fieldBinding = new FieldBinding(
+                RECORDER_FIELD_NAME,
+                binaryTypeBinding,
+                ClassFileConstants.AccPublic | ClassFileConstants.AccStatic | ClassFileConstants.AccFinal,
+                type.binding, // bind to enclosing class,
+                null);
+        recorderField.binding = fieldBinding;
+        type.binding.addField(fieldBinding);
+
+        // com.atlassian.clover.Clover.getRecorder(
+        //   String initChars, final long dbVersion, final long cfgbits, final int maxNumElements,
+        //   CloverProfile[] profiles, final String[] nvpProperties)
+        String initializationSource = Clover.class.getName() + ".getRecorder(\""
+                + config.getInitString() + "\", "
+                + session.getVersion() + "L, "
+                + "0L,"
+                + session.getCurrentFileMaxIndex() + ","
+                + "null, null)";
+        getParser().parse(recorderField, type, unit, initializationSource.toCharArray());
+// TODO replace getParser().parse(...) by: recorderField.initialization = createCloverGetRecorderCall();
+
+        // add new field
+        newFields[newFields.length - 1] = recorderField;
+        type.fields = newFields;
+
+        // Note: the TypeDeclaration.addClinit() calls needClassInitMethod() which checks for presence of any static
+        // fields initializers etc and adds "<clinit>" method if necessary. As it was already called BEFORE we added
+        // our recorder field, we must call it again, if <clinit> is not present. Otherwise field won't initialize.
+        if (!isClinitDeclared(type)) {
+            type.addClinit();
+        }
+    }
+
+    /**
+     * Create a call:
+     * <pre>
+     *     com_atlassian_clover.Clover.getRecorder(
+     *         config.getInitString(),
+     *         session.getVersion(),
+     *         0L,
+     *         session.getCurrentFileMaxIndex(),
+     *         null,
+     *         null)
+     * </pre>
+     *
+     * <pre>
+     * com.atlassian.clover.Clover.getRecorder(
+     *    String initChars, final long dbVersion, final long cfgbits, final int maxNumElements,
+     *   CloverProfile[] profiles, final String[] nvpProperties)
+     * </pre>
+     *
+     * @return MessageSend
+     */
+    // TODO implement
+    private MessageSend createCloverGetRecorderCall() {
+        MessageSend getRecorderCall = new MessageSend();
+
+        char[][] cloverType = new char[2][];
+        cloverType[0] = "com_atlassian_clover".toCharArray();
+        cloverType[1] = "Clover".toCharArray();
+
+        getRecorderCall.receiver = new QualifiedTypeReference(cloverType, new long[2]);
+        getRecorderCall.selector = "getRecorder".toCharArray();
+        getRecorderCall.arguments = new Expression[] {
+                // initString
+                // dbVersion
+                // cfgBits
+                // maxNumElements
+                // profiles
+                // nvpProperties
+        };
+        return getRecorderCall;
+
+        // $CLV_R.inc(index);
+//        final IntLiteral indexLiteral = IntLiteral.buildIntLiteral(
+//                Integer.toString(index).toCharArray(), 0, 0);
+//        final MessageSend incCall = new MessageSend();
+//        incCall.receiver = new SingleNameReference(CloverAjCompilerAdapter.RECORDER_FIELD_NAME, 0);
+//        incCall.selector = "inc".toCharArray();
+//        incCall.arguments = new Expression[] { indexLiteral };
+//
+//        return incCall;
+    }
+
+    private Parser getParser() {
+        try {
+            final Field compilerField = originalAdapter.getClass().getDeclaredField("compiler");
+            compilerField.setAccessible(true);
+            org.aspectj.org.eclipse.jdt.internal.compiler.Compiler compiler =
+                    (org.aspectj.org.eclipse.jdt.internal.compiler.Compiler) compilerField.get(originalAdapter);
+            return compiler.parser; //org.aspectj.org.eclipse.jdt.internal.compiler.parser.Parser
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean isClinitDeclared(final TypeDeclaration type) {
+        for (AbstractMethodDeclaration method : type.methods) {
+            if (method.isClinit()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public boolean visit(final FieldDeclaration fieldDeclaration, final MethodScope scope) {
         return super.visit(fieldDeclaration, scope);
@@ -139,6 +285,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 false,
                 false,
                 false);
+
+        addCoverageRecorderField(typeDeclaration, scope.referenceCompilationUnit());
+
         return super.visit(typeDeclaration, scope);
     }
 
@@ -488,7 +637,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     // helper methods
 
     protected void endVisitStatement(final Statement genericStatement, final BlockScope blockScope) {
-        if (instrumentationLevel == InstrumentationLevel.METHOD) {
+        if (config.getInstrLevel() == InstrumentationLevel.METHOD) {
             return;
         }
 
