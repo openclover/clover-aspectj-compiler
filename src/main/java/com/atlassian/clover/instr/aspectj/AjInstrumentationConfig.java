@@ -11,6 +11,8 @@ public class AjInstrumentationConfig implements Serializable {
 
     public AjInstrumentationConfig() {
         baseConfig = new InstrumentationConfig();
+        baseConfig.setInitstring(".clover/clover.db");
+        baseConfig.setInstrLevel(InstrumentationLevel.STATEMENT.ordinal());
     }
 
     public String getInitString() {
