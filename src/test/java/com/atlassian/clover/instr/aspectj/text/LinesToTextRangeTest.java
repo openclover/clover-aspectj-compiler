@@ -1,5 +1,6 @@
-package com.atlassian.clover.instr.aspectj;
+package com.atlassian.clover.instr.aspectj.text;
 
+import com.atlassian.clover.instr.aspectj.text.LinesToTextRange;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

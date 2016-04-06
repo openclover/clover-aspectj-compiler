@@ -78,7 +78,7 @@ public class CloverAjCompilerAdapter implements ICompilerAdapter {
     @Override
     public void beforeResolving(CompilationUnitDeclaration unit) {
         unit.traverse(
-                new CloverAjAstInstrumenter(session, config, originalAdapter, lookupEnvironment),
+                new CloverAjAstInstrumenter(session, config, lookupEnvironment),
                 unit.scope);
         originalAdapter.beforeResolving(unit);
     }

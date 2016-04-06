@@ -1,4 +1,4 @@
-package com.atlassian.clover.instr.aspectj;
+package com.atlassian.clover.instr.aspectj.text;
 
 import com.atlassian.clover.util.IOStreamUtils;
 import com.atlassian.clover.util.collections.Pair;
@@ -39,7 +39,7 @@ public class CharToLineColMapper {
 
     public Pair<Integer, Integer> getLineColFor(int characterPosition) {
         int previousEnd = -1;
-        int currentEnd = 0;
+        int currentEnd;
         for (int lineNum = 0; lineNum < linesEndings.size(); lineNum++) {
             currentEnd = linesEndings.get(lineNum);
             if (characterPosition > previousEnd && characterPosition <= currentEnd) {

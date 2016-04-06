@@ -1,4 +1,6 @@
-package com.atlassian.clover.instr.aspectj;
+package com.atlassian.clover.instr.aspectj.text;
+
+import com.atlassian.clover.instr.aspectj.text.TextRange;
 
 import java.util.ArrayList;
 

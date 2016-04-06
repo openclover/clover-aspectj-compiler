@@ -1,4 +1,4 @@
-package com.atlassian.clover.instr.aspectj;
+package com.atlassian.clover.instr.aspectj.text;
 
 public class TextRange  {
     private final int myStartOffset;

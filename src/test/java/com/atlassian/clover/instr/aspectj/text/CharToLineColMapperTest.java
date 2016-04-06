@@ -1,5 +1,6 @@
-package com.atlassian.clover.instr.aspectj;
+package com.atlassian.clover.instr.aspectj.text;
 
+import com.atlassian.clover.instr.aspectj.text.CharToLineColMapper;
 import com.atlassian.clover.util.collections.Pair;
 import org.junit.Test;
 
