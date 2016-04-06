@@ -1,0 +1,53 @@
+<project default="report">
+    <property name="clover.license.path" location="${user.home}/clover.license"/>
+
+    <property name="clover-ajc.jar" location="${user.home}/.m2/repository/com/atlassian/clover/clover-aspectj-compiler/0.8.0/clover-aspectj-compiler-0.8.0.jar"/>
+    <property name="clover-core.jar" location="${user.home}/.m2/repository/com/atlassian/clover/clover/4.1.1/clover-4.1.1.jar"/>
+    <property name="ajc-rt.jar" location="${user.home}/.m2/repository/org/aspectj/aspectjrt/1.8.9/aspectjrt-1.8.9.jar"/>
+    <property name="ajc-tools.jar" location="${user.home}/.m2/repository/org/aspectj/aspectjtools/1.8.9/aspectjtools-1.8.9.jar"/>
+
+    <property name="build.classes.dir" location="target/classes"/>
+    <property name="build.clover.db" location="target/db/clover.db"/>
+    <property name="build.report.dir" location="target/report"/>
+
+    <path id="compile.path">
+        <pathelement location="${ajc-rt.jar}"/>
+        <pathelement location="${ajc-tools.jar}"/>
+        <pathelement location="${clover-core.jar}"/>
+        <pathelement location="${clover-ajc.jar}"/>
+    </path>
+
+    <target name="compile">
+        <java classname="com.atlassian.clover.instr.aspectj.CloverAjc" classpathref="compile.path" fork="true">
+            <!-- Clover settings -->
+            <arg value="--initstring"/> <!-- database location -->
+            <arg value="${build.clover.db}"/>
+            <arg value="--instrlevel"/> <!-- statement or method instrumentation -->
+            <arg value="statement"/>
+            <!-- AJC settings -->
+            <arg value="-sourceroots"/>
+            <arg value="src"/>
+            <arg value="-d"/>
+            <arg value="${build.classes.dir}"/>
+            <arg value="-noExit"/>
+            <arg value="-1.6"/> <!-- java source/target level -->
+        </java>
+    </target>
+
+    <target name="test" depends="compile">
+        <java classname="instrumentation.StatementInstrumentation">
+            <classpath refid="compile.path"/>
+            <classpath location="${build.classes.dir}"/>
+        </java>
+    </target>
+
+    <target name="report" depends="test">
+        <taskdef resource="cloverlib.xml" classpath="${clover-core.jar}"/>
+        <clover-report initstring="${build.clover.db}">
+            <current alwaysReport="true" outfile="${build.report.dir}">
+                <format type="html"/>
+            </current>
+        </clover-report>
+        <echo message="See the Clover HTML report in: ${build.report.dir}/index.html"/>
+    </target>
+</project>
