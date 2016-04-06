@@ -14,6 +14,7 @@ import com.atlassian.clover.registry.entities.MethodSignature;
 import com.atlassian.clover.spi.lang.LanguageConstruct;
 import com.atlassian.clover.util.collections.Pair;
 import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
+import org.aspectj.ajdt.internal.compiler.ast.InterTypeMethodDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.AbstractMethodDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Assignment;
@@ -177,11 +178,8 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         final MethodInfo methodInfo = enterConstructorOrMethod(
                 methodDeclaration,
                 MethodSignatureUtil.extractMethodSignature(methodDeclaration),
-                methodDeclaration instanceof DeclareDeclaration,  // hack: 'declare' treat as test method to display a friendly name
-                methodDeclaration instanceof DeclareDeclaration
-                        ? ((DeclareDeclaration) methodDeclaration).declareDecl.toString() // hack: use static test name for 'declare'
-                        : null  // no static test name
-                );
+                treatAsTestMethod(methodDeclaration),
+                getStaticTestName(methodDeclaration));
 
         final boolean ret = super.visit(methodDeclaration, scope);
 
@@ -222,7 +220,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final Assignment assignment, final BlockScope scope) {
-        endVisitStatement(assignment, scope);
+        instrumentStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
 
@@ -231,7 +229,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final CaseStatement statement, final BlockScope scope) {
-        endVisitStatement(statement, scope);
+        instrumentStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -240,7 +238,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final DoStatement statement, final BlockScope scope) {
-        endVisitStatement(statement, scope);
+        instrumentStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -249,7 +247,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final ForStatement statement, final BlockScope scope) {
-        endVisitStatement(statement, scope);
+        instrumentStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -258,7 +256,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final ForeachStatement statement, final BlockScope scope) {
-        endVisitStatement(statement, scope);
+        instrumentStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -267,7 +265,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final IfStatement statement, final BlockScope scope) {
-        endVisitStatement(statement, scope);
+        instrumentStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -276,7 +274,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final LocalDeclaration localDeclaration, final BlockScope scope) {
-        endVisitStatement(localDeclaration, scope);
+        instrumentStatement(localDeclaration, scope);
         super.endVisit(localDeclaration, scope);
     }
 
@@ -285,7 +283,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final MessageSend messageSend, final BlockScope scope) {
-        endVisitStatement(messageSend, scope);
+        instrumentStatement(messageSend, scope);
         super.endVisit(messageSend, scope);
     }
 
@@ -294,7 +292,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final SwitchStatement assignment, final BlockScope scope) {
-        endVisitStatement(assignment, scope);
+        instrumentStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
 
@@ -303,7 +301,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final ReturnStatement assignment, final BlockScope scope) {
-        endVisitStatement(assignment, scope);
+        instrumentStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
 
@@ -312,7 +310,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final TryStatement assignment, final BlockScope scope) {
-        endVisitStatement(assignment, scope);
+        instrumentStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
 
@@ -321,7 +319,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final WhileStatement statement, final BlockScope scope) {
-        endVisitStatement(statement, scope);
+        instrumentStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -331,7 +329,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                                                   final MethodSignature signature,
                                                   final boolean isTestMethod,
                                                   final String staticTestName) {
-        final Pair<Integer, Integer> lineCol = charIndexToLineCol(constrOrMethod.declarationSourceStart);
+        final Pair<Integer, Integer> lineCol = charIndexToLineCol(constrOrMethod.sourceStart);
         return session.enterMethod(
                 new ContextSet(),
                 new FixedSourceRegion(lineCol.first, lineCol.second),
@@ -348,7 +346,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         session.exitMethod(lineCol.first, lineCol.second);
     }
 
-    protected void endVisitStatement(final Statement genericStatement, final BlockScope blockScope) {
+    protected void instrumentStatement(final Statement genericStatement, final BlockScope blockScope) {
         if (config.getInstrLevel() == InstrumentationLevel.METHOD) {
             return;
         }
@@ -439,4 +437,26 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
         return incCall;
     }
+
+    /**
+     * A hack to display a static test name instead of the AJC-generated method name
+     */
+    private boolean treatAsTestMethod(MethodDeclaration methodDeclaration) {
+        return methodDeclaration instanceof DeclareDeclaration
+                || methodDeclaration instanceof InterTypeMethodDeclaration;
+    }
+
+    /**
+     * Extract a friendly name for the AJC-generated method.
+     */
+    private String getStaticTestName(MethodDeclaration methodDeclaration) {
+        if (methodDeclaration instanceof DeclareDeclaration) {
+            return ((DeclareDeclaration) methodDeclaration).declareDecl.toString();
+        } else if (methodDeclaration instanceof InterTypeMethodDeclaration) {
+            return ((InterTypeMethodDeclaration) methodDeclaration).getSignature().toString();
+        } else {
+            return null;
+        }
+    }
+
 }
