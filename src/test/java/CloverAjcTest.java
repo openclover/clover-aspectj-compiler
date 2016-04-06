@@ -30,7 +30,7 @@ public class CloverAjcTest {
         final String[] compilerArgs = {
                 // Clover stuff
                 "--initstring", CLOVER_DB_PATH,
-                "--instrlevel", "method",
+                "--instrlevel", "statement",
                 // AJC stuff
                 "-sourceroots", SOURCE_DIR,
                 "-d", TARGET_CLASSES_DIR,
@@ -51,6 +51,7 @@ public class CloverAjcTest {
         assertEquals("Instrumentation failed with " + errorsCount + " errors", 0, errorsCount);
         assertTrue(new File(TARGET_CLASSES_DIR, "introduction/A.class").exists());
         assertTrue(new File(TARGET_CLASSES_DIR, "introduction/CloneablePoint.class").exists());
+        assertTrue(new File(TARGET_CLASSES_DIR, "instrumentation/StatementInstrumentation.class").exists());
         assertTrue(new File(CLOVER_DB_PATH).exists());
 
         // run classes
@@ -64,6 +65,7 @@ public class CloverAjcTest {
         JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.CloneablePoint");
         JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.ComparablePoint");
         JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.HashablePoint");
+        JavaExecutor.launchJava("-cp", CLASSPATH, "instrumentation.StatementInstrumentation");
 
         // generate html report
         CloverStartup.loadLicense(Logger.getInstance());

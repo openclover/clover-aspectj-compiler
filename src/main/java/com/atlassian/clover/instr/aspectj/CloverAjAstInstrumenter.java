@@ -150,11 +150,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         // ConstructorDeclaration.statements, so we don't have to worry about when wrapping statements into the
         // try-catch block - the super() call will be always the first statement
 
-        // $CLV_R.inc(index) + original statements
+        // $CLV_R.inc(index) for a constructor + $CLV_R.inc() for each of original statements
         final int index = methodInfo.getDataIndex();
         final Statement[] statementsPlusOne = insertStatementBefore(
                 createRecorderIncCall(index),
-                constructorDeclaration.statements);
+                instrumentStatements(constructorDeclaration.statements, null));
 
         // encapsulate it in a try-finally block with coverage flushing
         final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
@@ -190,11 +190,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         //    $CLV_R.maybeFlush();
         // }
 
-        // $CLV_R.inc(index) + original statements
+        // $CLV_R.inc(index) for a method + $CLV_R.inc() for each of original statements
         final int index = methodInfo.getDataIndex();
         final Statement[] statementsPlusOne = insertStatementBefore(
                 createRecorderIncCall(index),
-                methodDeclaration.statements);
+                instrumentStatements(methodDeclaration.statements, null));
 
         // encapsulate it in a try-finally block with coverage flushing
         final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
@@ -220,7 +220,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final Assignment assignment, final BlockScope scope) {
-        instrumentStatement(assignment, scope);
+        // TODO do we need this? instrumentStatement(assignment, scope);
         super.endVisit(assignment, scope);
     }
 
@@ -229,7 +229,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final CaseStatement statement, final BlockScope scope) {
-        instrumentStatement(statement, scope);
+        // TODO we've got labels, not arrays of statements (due to a fall-through ability?)  instrumentStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -238,7 +238,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final DoStatement statement, final BlockScope scope) {
-        instrumentStatement(statement, scope);
+        statement.action = instrumentStatement(statement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -247,7 +247,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final ForStatement statement, final BlockScope scope) {
-        instrumentStatement(statement, scope);
+        // TODO shall we instrument statement.initializations ?
+        // TODO shall we instrument statement.increments ?
+        statement.action = instrumentStatement(statement.action, scope);
         super.endVisit(statement, scope);
     }
 
@@ -256,7 +258,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final ForeachStatement statement, final BlockScope scope) {
-        instrumentStatement(statement, scope);
+        statement.action = instrumentStatement(statement.action, scope);
         super.endVisit(statement, scope);
     }
 
@@ -265,7 +267,8 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final IfStatement statement, final BlockScope scope) {
-        instrumentStatement(statement, scope);
+        statement.thenStatement = instrumentStatement(statement.thenStatement, scope);
+        statement.elseStatement = instrumentStatement(statement.elseStatement, scope);
         super.endVisit(statement, scope);
     }
 
@@ -274,7 +277,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final LocalDeclaration localDeclaration, final BlockScope scope) {
-        instrumentStatement(localDeclaration, scope);
+        // TODO do we need this? instrumentStatement(localDeclaration, scope);
         super.endVisit(localDeclaration, scope);
     }
 
@@ -283,7 +286,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final MessageSend messageSend, final BlockScope scope) {
-        instrumentStatement(messageSend, scope);
+        // TODO do we need this? instrumentStatement(messageSend, scope);
         super.endVisit(messageSend, scope);
     }
 
@@ -291,36 +294,40 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      * Switch statement
      */
     @Override
-    public void endVisit(final SwitchStatement assignment, final BlockScope scope) {
-        instrumentStatement(assignment, scope);
-        super.endVisit(assignment, scope);
+    public void endVisit(final SwitchStatement switchStatement, final BlockScope scope) {
+        // TODO ??? instrumentation is handled by endVisit(CaseStatement) ?
+        super.endVisit(switchStatement, scope);
     }
 
     /**
-     * Return statement, e.g. "return 2"
+     * Return statement
      */
     @Override
     public void endVisit(final ReturnStatement assignment, final BlockScope scope) {
-        instrumentStatement(assignment, scope);
+        // instrumentation is alrady handled as the return statement is part of other blocks
         super.endVisit(assignment, scope);
     }
 
     /**
-     * Return statement, e.g. "return 2"
+     * Try-catch-finally
      */
     @Override
-    public void endVisit(final TryStatement assignment, final BlockScope scope) {
-        instrumentStatement(assignment, scope);
-        super.endVisit(assignment, scope);
+    public void endVisit(final TryStatement tryStatement, final BlockScope scope) {
+        tryStatement.tryBlock.statements = instrumentStatements(tryStatement.tryBlock.statements, scope);
+        for (int i = 0; i < tryStatement.catchBlocks.length; i++) {
+            tryStatement.catchBlocks[i].statements = instrumentStatements(tryStatement.catchBlocks[i].statements, scope);
+        }
+        tryStatement.finallyBlock.statements = instrumentStatements(tryStatement.finallyBlock.statements, scope);
+        super.endVisit(tryStatement, scope);
     }
 
     /**
      * While loop
      */
     @Override
-    public void endVisit(final WhileStatement statement, final BlockScope scope) {
-        instrumentStatement(statement, scope);
-        super.endVisit(statement, scope);
+    public void endVisit(final WhileStatement whileStatement, final BlockScope scope) {
+        whileStatement.action = instrumentStatement(whileStatement, scope);
+        super.endVisit(whileStatement, scope);
     }
 
     // helper methods
@@ -346,17 +353,65 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         session.exitMethod(lineCol.first, lineCol.second);
     }
 
-    protected void instrumentStatement(final Statement genericStatement, final BlockScope blockScope) {
+    protected Statement[] instrumentStatements(final Statement[] originalStatements, final BlockScope blockScope) {
+        // do not instrument statements for METHOD-only level
         if (config.getInstrLevel() == InstrumentationLevel.METHOD) {
-            return;
+            return originalStatements;
         }
 
         // do not instrument statements related with initialization of class' fields
         if (blockScope instanceof MethodScope
                 && ((MethodScope) blockScope).referenceContext instanceof TypeDeclaration) {
-            return;
+            return originalStatements;
         }
 
+        // do not instrument empty blocks
+        // TODO consider adding at least one CLV_R.inc() in such case, e.g. "if (a) { } else { }" could show coverage
+        if (originalStatements == null || originalStatements.length == 0) {
+            return originalStatements;
+        }
+
+        // TODO it seems that we are visiting statements added by method node rewrite (inc,maybeFlush)
+        // TODO shall we rewrite it or rewrite all statements in a method node?
+        // for every statement in the block, add extra $CLV_R.inc() before it
+        final Statement[] instrStatements = new Statement[originalStatements.length * 2];
+        for (int i = 0; i < originalStatements.length; i++) {
+            int index = registerStatement(originalStatements[i]);
+            final MessageSend incCall = createRecorderIncCall(index);
+            instrStatements[i * 2] = incCall;
+            instrStatements[i * 2 + 1] = originalStatements[i];
+        }
+
+        return instrStatements;
+    }
+
+    protected Statement instrumentStatement(final Statement originalStatement, final BlockScope blockScope) {
+        // do not instrument statements for METHOD-only level
+        if (config.getInstrLevel() == InstrumentationLevel.METHOD) {
+            return originalStatement;
+        }
+
+        // do not instrument statements related with initialization of class' fields
+        if (blockScope instanceof MethodScope
+                && ((MethodScope) blockScope).referenceContext instanceof TypeDeclaration) {
+            return originalStatement;
+        }
+
+        // TODO do not instrument our own calls - $CLV_R.inc() or $CLV_R.maybeFlush() etc
+        // TODO e.g.: if (!(originalStatement instanceof MessageSend) || !originalStatement.toString().startsWith("$CLV_R."))
+
+        // register new statement in database
+        final int index = registerStatement(originalStatement);
+        final MessageSend incCall = createRecorderIncCall(index);
+
+        // rewrite node into "{ $CLV_R.inc(index); original_statement; }"
+        final Block block = new Block(0);
+        block.statements = new Statement[] { incCall, originalStatement };
+        return block;
+    }
+
+    protected int registerStatement(final Statement genericStatement) {
+        // register new statement in database
         final Pair<Integer, Integer> lineColStart = charIndexToLineCol(genericStatement.sourceStart);
         final Pair<Integer, Integer> lineColEnd = charIndexToLineCol(genericStatement.sourceEnd);
         final FullStatementInfo statementInfo = session.addStatement(
@@ -366,20 +421,8 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                         lineColEnd.first, lineColEnd.second),
                 1,
                 LanguageConstruct.Builtin.STATEMENT);
-        final int index = statementInfo.getDataIndex();
 
-        // Rewrite node into "$CLV_R.inc(index); original_statement;"
-
-        // $CLV_R.inc(index);
-        final IntLiteral indexLiteral = IntLiteral.buildIntLiteral(
-                Integer.toString(index).toCharArray(), 0, 0);
-        final MessageSend incCall = new MessageSend();
-        incCall.receiver = new SingleNameReference(CloverAjCompilerAdapter.RECORDER_FIELD_NAME, 0);
-        incCall.selector = "inc".toCharArray();
-        incCall.arguments = new Expression[] { indexLiteral };
-
-        // TODO seems that we are visiting statements added by method node rewrite (inc,maybeFlush)
-        // TODO shall we rewrite it or rewrite all statements in a method node?
+        return statementInfo.getDataIndex();
     }
 
     protected Pair<Integer, Integer> charIndexToLineCol(final int charIndex) {
