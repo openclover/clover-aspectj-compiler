@@ -23,6 +23,7 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CaseStatement;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.CompilationUnitDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ConstructorDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.DoStatement;
+import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ExplicitConstructorCall;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Expression;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.FieldDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.ForStatement;
@@ -187,25 +188,56 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
         final boolean ret = super.visit(methodDeclaration, scope);
 
-        // Rewrite the method's code into sth like this
-        // try { $CLV_R.inc(index);
-        //   ...original code...
-        // } finally {
-        //    $CLV_R.maybeFlush();
-        // }
-
-        // $CLV_R.inc(index) for a method + $CLV_R.inc() for each of original statements
+        // Special case: the InterTypeConstructorDeclaration is handled as a MethodDeclaration and it may have an
+        // explicit constructor call declared in the 'statements' field instead of the 'explicitConstructorCall'
+        // ensure that we won't wrap this super() in the try-catch block as it must be first statement
+        final boolean hasSuperCall = methodDeclaration.statements != null
+                && methodDeclaration.statements.length > 0
+                && methodDeclaration.statements[0] instanceof ExplicitConstructorCall;
         final int index = methodInfo.getDataIndex();
-        final Statement[] statementsPlusOne = insertStatementBefore(
-                createRecorderIncCall(index),
-                instrumentStatements(methodDeclaration.statements, null));
 
-        // encapsulate it in a try-finally block with coverage flushing
-        final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
+        if (!hasSuperCall) {
+            // Rewrite the method's code into sth like this
+            // try { $CLV_R.inc(index);
+            //   ...original code...
+            // } finally {
+            //    $CLV_R.maybeFlush();
+            // }
 
-        // swap method's code with the new one
-        if (config.isInstrumentAST()) {
-            methodDeclaration.statements = new Statement[]{tryBlock};
+            // $CLV_R.inc(index) for a method + $CLV_R.inc() for each of original statements
+            final Statement[] statementsPlusOne = insertStatementBefore(
+                    createRecorderIncCall(index),
+                    instrumentStatements(methodDeclaration.statements, null));
+
+            // encapsulate it in a try-finally block with coverage flushing
+            final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
+
+            // swap method's code with the new one
+            if (config.isInstrumentAST()) {
+                methodDeclaration.statements = new Statement[]{tryBlock};
+            }
+        } else {
+            // Rewrite the method's code into this:
+            // super(...);
+            // try $CLV_R.inc(index);
+            //   ...rest of the original code...
+            // } finally {
+            //    $CLV_R.maybeFlush();
+            // }
+            final Statement superCall = methodDeclaration.statements[0];
+            final Statement[] otherStatements = new Statement[methodDeclaration.statements.length - 1];
+            System.arraycopy(methodDeclaration.statements, 1, otherStatements, 0, methodDeclaration.statements.length - 1);
+
+            final TryStatement tryBlock =
+                    createTryFinallyWithRecorderFlush(
+                            insertStatementBefore(
+                                    createRecorderIncCall(index),
+                                    instrumentStatements(otherStatements, null)));
+
+            // swap method's code with the new one
+            if (config.isInstrumentAST()) {
+                methodDeclaration.statements = new Statement[]{superCall, tryBlock};
+            }
         }
 
         return ret;
@@ -441,7 +473,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
         // rewrite node into "{ $CLV_R.inc(index); original_statement; }"
         final Block block = new Block(0);
-        block.statements = new Statement[] { incCall, originalStatement };
+        block.statements = new Statement[]{incCall, originalStatement};
         return config.isInstrumentAST() ? block : originalStatement;
     }
 
@@ -487,7 +519,8 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
     /**
      * Put one statement before others. Handles null case.
-     * @param before non null
+     *
+     * @param before   non null
      * @param original can be null
      * @return Statement[]
      */
@@ -511,7 +544,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         final MessageSend incCall = new MessageSend();
         incCall.receiver = new SingleNameReference(CloverAjCompilerAdapter.RECORDER_FIELD_NAME, 0);
         incCall.selector = "inc".toCharArray();
-        incCall.arguments = new Expression[] { indexLiteral };
+        incCall.arguments = new Expression[]{indexLiteral};
 
         return incCall;
     }
