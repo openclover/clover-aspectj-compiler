@@ -238,7 +238,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final DoStatement statement, final BlockScope scope) {
-        statement.action = instrumentStatement(statement, scope);
+        if (statement.action instanceof Block) {
+            ((Block) statement.action).statements = instrumentStatements(((Block) statement.action).statements, scope);
+        } else {
+            statement.action = instrumentStatement(statement.action, scope);
+        }
         super.endVisit(statement, scope);
     }
 
@@ -249,7 +253,15 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     public void endVisit(final ForStatement statement, final BlockScope scope) {
         // TODO shall we instrument statement.initializations ?
         // TODO shall we instrument statement.increments ?
-        statement.action = instrumentStatement(statement.action, scope);
+        if (statement.action instanceof Block) {
+            // block starts with "{" brace, which is usually in a line above statement(s);
+            // so to have lines coloured correctly in the report, instrument statements inside
+            ((Block) statement.action).statements = instrumentStatements(((Block) statement.action).statements, scope);
+        } else {
+            // typically an EmptyStatement, still instrument it
+            statement.action = instrumentStatement(statement.action, scope);
+        }
+
         super.endVisit(statement, scope);
     }
 
@@ -258,7 +270,14 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final ForeachStatement statement, final BlockScope scope) {
-        statement.action = instrumentStatement(statement.action, scope);
+        if (statement.action instanceof Block) {
+            // block starts with "{" brace, which is usually in a line above statement(s);
+            // so to have lines coloured correctly in the report, instrument statements inside
+            ((Block) statement.action).statements = instrumentStatements(((Block) statement.action).statements, scope);
+        } else {
+            // typically an EmptyStatement, still instrument it
+            statement.action = instrumentStatement(statement.action, scope);
+        }
         super.endVisit(statement, scope);
     }
 
@@ -268,7 +287,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     @Override
     public void endVisit(final IfStatement statement, final BlockScope scope) {
         statement.thenStatement = instrumentStatement(statement.thenStatement, scope);
-        statement.elseStatement = instrumentStatement(statement.elseStatement, scope);
+        if (statement.elseStatement != null) {
+            statement.elseStatement = instrumentStatement(statement.elseStatement, scope);
+        }
         super.endVisit(statement, scope);
     }
 
@@ -314,10 +335,14 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     @Override
     public void endVisit(final TryStatement tryStatement, final BlockScope scope) {
         tryStatement.tryBlock.statements = instrumentStatements(tryStatement.tryBlock.statements, scope);
-        for (int i = 0; i < tryStatement.catchBlocks.length; i++) {
-            tryStatement.catchBlocks[i].statements = instrumentStatements(tryStatement.catchBlocks[i].statements, scope);
+        if (tryStatement.catchBlocks != null) {
+            for (int i = 0; i < tryStatement.catchBlocks.length; i++) {
+                tryStatement.catchBlocks[i].statements = instrumentStatements(tryStatement.catchBlocks[i].statements, scope);
+            }
         }
-        tryStatement.finallyBlock.statements = instrumentStatements(tryStatement.finallyBlock.statements, scope);
+        if (tryStatement.finallyBlock != null) {
+            tryStatement.finallyBlock.statements = instrumentStatements(tryStatement.finallyBlock.statements, scope);
+        }
         super.endVisit(tryStatement, scope);
     }
 
@@ -326,7 +351,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final WhileStatement whileStatement, final BlockScope scope) {
-        whileStatement.action = instrumentStatement(whileStatement, scope);
+        if (whileStatement.action instanceof Block) {
+            ((Block) whileStatement.action).statements = instrumentStatements(((Block) whileStatement.action).statements, scope);
+        } else {
+            whileStatement.action = instrumentStatement(whileStatement.action, scope);
+        }
         super.endVisit(whileStatement, scope);
     }
 

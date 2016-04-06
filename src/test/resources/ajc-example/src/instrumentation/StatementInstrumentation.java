@@ -31,6 +31,8 @@ public class StatementInstrumentation {
             i++;
         }
         i++;
+
+        for (i = 0; i < 10; i++);
     }
 
     public void doWhileLoop() {
@@ -49,6 +51,7 @@ public class StatementInstrumentation {
     }
 
     public void tryCatchFinally() {
+        // test multiple catches and finally
         int j = 0;
         try {
             j++;
@@ -60,6 +63,29 @@ public class StatementInstrumentation {
             j++;
         }
         j++;
+
+        // test without finally
+        try {
+            j++;
+        } catch (Exception e) {
+            j++;
+        }
+
+        // test without catches
+        try {
+            j++;
+        } finally {
+            j++;
+        }
+
+        // test with empty blocks
+        try {
+
+        } catch (Exception e) {
+
+        } finally {
+
+        }
     }
 
     public void ifThenElse() {
@@ -69,7 +95,7 @@ public class StatementInstrumentation {
         }
 
         if (j < 10) {
-            j++
+            j++;
         } else {
             j--;
         }
@@ -79,6 +105,8 @@ public class StatementInstrumentation {
         } else {
 
         }
+
+        if (j < 10); else;
     }
 
     public void switchCaseDefault() {
