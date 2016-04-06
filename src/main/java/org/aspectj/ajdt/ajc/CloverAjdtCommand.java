@@ -61,13 +61,17 @@ public class CloverAjdtCommand extends AjdtCommand {
         // See also: com.atlassian.clover.CloverInstr#processArgs(String[])
         int i = 0;
         while (i < args.length) {
-            if (args[i].equals("-i") || args[i].equals("--initstring")) {
+            if (args[i].equals("--initstring")) {
                 i++;
                 config.setInitstring(args[i]);
             } else if (args[i].equals("--instrlevel")) {
                 i++;
                 String instr = args[i].toUpperCase(Locale.US);
                 config.setInstrLevel(InstrumentationLevel.valueOf(instr));
+            } else if (args[i].equals("--instrAST")) {
+                i++;
+                boolean instrAST = Boolean.valueOf(args[i]);
+                config.setInstrumentAST(instrAST);
             } else {
                 // not Clover one? pass it to AJC
                 ajcArgs.add(args[i]);

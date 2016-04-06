@@ -8,6 +8,7 @@ import java.io.Serializable;
 public class AjInstrumentationConfig implements Serializable {
 
     private final InstrumentationConfig baseConfig;
+    private boolean instrumentAST = true;
 
     public AjInstrumentationConfig() {
         baseConfig = new InstrumentationConfig();
@@ -31,4 +32,15 @@ public class AjInstrumentationConfig implements Serializable {
         baseConfig.setInstrLevel(instrLevel.ordinal());
     }
 
+    /**
+     * Wheter to add Clover instrumentation to the AST. If set to false, Clover will still record methods and
+     * statements in the database, but will not add any recorder calls or fields to the AST. For debugging purposes only.
+     */
+    public boolean isInstrumentAST() {
+        return instrumentAST;
+    }
+
+    public void setInstrumentAST(boolean instrumentAST) {
+        this.instrumentAST = instrumentAST;
+    }
 }
