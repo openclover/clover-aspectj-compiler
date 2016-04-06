@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.atlassian.clover</groupId>
     <artifactId>clover-aspectj-compiler</artifactId>
-    <version>0.1-SNAPSHOT</version>
+    <version>0.8.0</version>
     <licenses>
         <license>
             <name>Apache License 2.0</name>
