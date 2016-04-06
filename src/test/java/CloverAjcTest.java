@@ -49,7 +49,6 @@ public class CloverAjcTest {
         printMessages("INFOS", infos);
 
         assertEquals("Instrumentation failed with " + errorsCount + " errors", 0, errorsCount);
-        assertTrue(new File(TARGET_CLASSES_DIR, "introduction/A.class").exists());
         assertTrue(new File(TARGET_CLASSES_DIR, "introduction/CloneablePoint.class").exists());
         assertTrue(new File(TARGET_CLASSES_DIR, "instrumentation/StatementInstrumentation.class").exists());
         assertTrue(new File(CLOVER_DB_PATH).exists());
@@ -60,7 +59,6 @@ public class CloverAjcTest {
                 M2 + "org/aspectj/aspectjrt/1.8.9/aspectjrt-1.8.9.jar" + File.pathSeparator
                 + M2 + "com/atlassian/clover/clover/4.1.1/clover-4.1.1.jar" + File.pathSeparator
                 + TARGET_CLASSES_DIR);
-        JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.A");
         JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.Point");
         JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.CloneablePoint");
         JavaExecutor.launchJava("-cp", CLASSPATH, "introduction.ComparablePoint");
