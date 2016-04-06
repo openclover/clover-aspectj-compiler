@@ -58,6 +58,12 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
     private final AjInstrumentationConfig config;
 
+    /**
+     * Wheter to add Clover instrumentation to the code. If set to false, Clover will still record methods and
+     * statements in the database, but will not add recorder calls to the AST. For debugging purposes only.
+     */
+    private boolean instrumentCode = true;
+
     private CharToLineColMapper lineColMapper;
 
     public CloverAjAstInstrumenter(final InstrumentationSession session,
@@ -115,8 +121,10 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 false,
                 false);
 
-        TypeDeclarationUtils.addCoverageRecorderField(typeDeclaration, lookupEnvironment,
-                config.getInitString(), session.getVersion(), session.getCurrentFileMaxIndex());
+        if (instrumentCode) {
+            TypeDeclarationUtils.addCoverageRecorderField(typeDeclaration, lookupEnvironment,
+                    config.getInitString(), session.getVersion(), session.getCurrentFileMaxIndex());
+        }
 
         return super.visit(typeDeclaration, scope);
     }
@@ -160,7 +168,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
 
         // swap constructor's code with the new one
-        constructorDeclaration.statements = new Statement[] { tryBlock };
+        if (instrumentCode) {
+            constructorDeclaration.statements = new Statement[]{tryBlock};
+        }
 
         return ret;
     }
@@ -200,7 +210,9 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
 
         // swap method's code with the new one
-        methodDeclaration.statements = new Statement[] { tryBlock };
+        if (instrumentCode) {
+            methodDeclaration.statements = new Statement[]{tryBlock};
+        }
 
         return ret;
     }
@@ -411,7 +423,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
             instrStatements[i * 2 + 1] = originalStatements[i];
         }
 
-        return instrStatements;
+        return instrumentCode ? instrStatements : originalStatements;
     }
 
     protected Statement instrumentStatement(final Statement originalStatement, final BlockScope blockScope) {
@@ -436,7 +448,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         // rewrite node into "{ $CLV_R.inc(index); original_statement; }"
         final Block block = new Block(0);
         block.statements = new Statement[] { incCall, originalStatement };
-        return block;
+        return instrumentCode ? block : originalStatement;
     }
 
     protected int registerStatement(final Statement genericStatement) {
