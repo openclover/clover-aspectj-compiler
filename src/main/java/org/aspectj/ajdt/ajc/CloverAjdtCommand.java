@@ -72,6 +72,9 @@ public class CloverAjdtCommand extends AjdtCommand {
                 i++;
                 boolean instrAST = Boolean.valueOf(args[i]);
                 config.setInstrumentAST(instrAST);
+            } else if (args[i].equals("--encoding")) {
+                i++;
+                config.setEncoding(args[i]);
             } else {
                 // not Clover one? pass it to AJC
                 ajcArgs.add(args[i]);

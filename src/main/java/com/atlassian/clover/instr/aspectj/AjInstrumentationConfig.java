@@ -9,6 +9,7 @@ public class AjInstrumentationConfig implements Serializable {
 
     private final InstrumentationConfig baseConfig;
     private boolean instrumentAST = true;
+    private String encoding;
 
     public AjInstrumentationConfig() {
         baseConfig = new InstrumentationConfig();
@@ -42,5 +43,13 @@ public class AjInstrumentationConfig implements Serializable {
 
     public void setInstrumentAST(boolean instrumentAST) {
         this.instrumentAST = instrumentAST;
+    }
+
+    public String getEncoding() {
+        return encoding;
+    }
+
+    public void setEncoding(String encoding) {
+        this.encoding = encoding;
     }
 }

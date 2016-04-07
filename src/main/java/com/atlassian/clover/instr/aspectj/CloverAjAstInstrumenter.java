@@ -12,6 +12,7 @@ import com.atlassian.clover.registry.FixedSourceRegion;
 import com.atlassian.clover.registry.entities.FullStatementInfo;
 import com.atlassian.clover.registry.entities.MethodSignature;
 import com.atlassian.clover.spi.lang.LanguageConstruct;
+import com.atlassian.clover.util.ChecksummingReader;
 import com.atlassian.clover.util.collections.Pair;
 import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
 import org.aspectj.ajdt.internal.compiler.ast.InterTypeMethodDeclaration;
@@ -48,6 +49,11 @@ import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.LookupEnvironment;
 import org.aspectj.org.eclipse.jdt.internal.compiler.lookup.MethodScope;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
 
 /**
  * Walks the entire abstract syntax tree adding Clover instrumentation.
@@ -87,7 +93,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 lineColMapper.getLineCount(),
                 sourceFile.lastModified(),
                 sourceFile.length(),
-                0
+                calculateChecksum(sourceFile)
         );
         return super.visit(compilationUnitDeclaration, scope);
     }
@@ -590,4 +596,24 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         }
     }
 
+    private long calculateChecksum(File file) {
+        try {
+            if (file.exists()) {
+                Reader fileReader;
+                if (config.getEncoding() != null) {
+                    fileReader = new InputStreamReader(new FileInputStream(file), config.getEncoding());
+                } else {
+                    fileReader = new FileReader(file);
+                }
+                final ChecksummingReader chksumReader = new ChecksummingReader(fileReader);
+                while (chksumReader.read() != -1) { /*no-op*/ }
+                return chksumReader.getChecksum();
+            } else {
+                return -1L;
+            }
+        } catch (IOException e) {
+            System.out.println("Clover failed to calculate checksum for a file: " + file);
+            return -1L;
+        }
+    }
 }
