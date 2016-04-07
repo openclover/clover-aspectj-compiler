@@ -15,6 +15,7 @@ import com.atlassian.clover.spi.lang.LanguageConstruct;
 import com.atlassian.clover.util.collections.Pair;
 import org.aspectj.ajdt.internal.compiler.ast.DeclareDeclaration;
 import org.aspectj.ajdt.internal.compiler.ast.InterTypeMethodDeclaration;
+import org.aspectj.ajdt.internal.compiler.ast.PointcutDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ASTVisitor;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.AbstractMethodDeclaration;
 import org.aspectj.org.eclipse.jdt.internal.compiler.ast.Assignment;
@@ -197,24 +198,27 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         final int index = methodInfo.getDataIndex();
 
         if (!hasSuperCall) {
-            // Rewrite the method's code into sth like this
-            // try { $CLV_R.inc(index);
-            //   ...original code...
-            // } finally {
-            //    $CLV_R.maybeFlush();
-            // }
+            // Special case: don't instrument pointcuts
+            if (!(methodDeclaration instanceof PointcutDeclaration)) {
+                // Rewrite the method's code into sth like this
+                // try { $CLV_R.inc(index);
+                //   ...original code...
+                // } finally {
+                //    $CLV_R.maybeFlush();
+                // }
 
-            // $CLV_R.inc(index) for a method + $CLV_R.inc() for each of original statements
-            final Statement[] statementsPlusOne = insertStatementBefore(
-                    createRecorderIncCall(index),
-                    instrumentStatements(methodDeclaration.statements, null));
+                // $CLV_R.inc(index) for a method + $CLV_R.inc() for each of original statements
+                final Statement[] statementsPlusOne = insertStatementBefore(
+                        createRecorderIncCall(index),
+                        instrumentStatements(methodDeclaration.statements, null));
 
-            // encapsulate it in a try-finally block with coverage flushing
-            final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
+                // encapsulate it in a try-finally block with coverage flushing
+                final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
 
-            // swap method's code with the new one
-            if (config.isInstrumentAST()) {
-                methodDeclaration.statements = new Statement[]{tryBlock};
+                // swap method's code with the new one
+                if (config.isInstrumentAST()) {
+                    methodDeclaration.statements = new Statement[]{tryBlock};
+                }
             }
         } else {
             // Rewrite the method's code into this:
