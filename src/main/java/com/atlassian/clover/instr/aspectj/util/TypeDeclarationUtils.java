@@ -147,9 +147,11 @@ public class TypeDeclarationUtils {
     }
 
     private static boolean isClinitDeclared(final TypeDeclaration type) {
-        for (AbstractMethodDeclaration method : type.methods) {
-            if (method.isClinit()) {
-                return true;
+        if (type.methods != null) {
+            for (AbstractMethodDeclaration method : type.methods) {
+                if (method.isClinit()) {
+                    return true;
+                }
             }
         }
         return false;
