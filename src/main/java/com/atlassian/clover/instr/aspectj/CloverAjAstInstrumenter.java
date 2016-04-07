@@ -319,6 +319,14 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         super.endVisit(statement, scope);
     }
 
+    // TODO Remove "instance of Block" references from other callbacks
+
+    @Override
+    public void endVisit(Block block, BlockScope scope) {
+        block.statements = instrumentStatements(block.statements, scope);
+        super.endVisit(block, scope);
+    }
+
     /**
      * Foreach statement, e.g. "for (line : lines)"
      */
