@@ -26,11 +26,14 @@ public class TypeDeclarationUtils {
 
     public static final char[] RECORDER_FIELD_NAME = "$CLV_R".toCharArray();
 
-    public static void addCoverageRecorderField(TypeDeclaration type, LookupEnvironment lookupEnvironment,
+    /**
+     * @return boolean - true if field was added
+     */
+    public static boolean addCoverageRecorderField(TypeDeclaration type, LookupEnvironment lookupEnvironment,
                                                  String initString, long dbVersion, int fileMaxIndex) {
         // do not add coverage recorder for annotation types
         if ((type.modifiers & ClassFileConstants.AccAnnotation) != 0) {
-            return;
+            return false;
         }
 
         final FieldDeclaration recorderField = new FieldDeclaration(RECORDER_FIELD_NAME, 0, 0);
@@ -50,14 +53,18 @@ public class TypeDeclarationUtils {
         recorderField.binding = fieldBinding;
         recorderField.initialization = createCloverGetRecorderCall(initString, dbVersion, fileMaxIndex);
 
-        // add new field to the class
-        addNewFieldDeclaration(type, recorderField);
-        addNewFieldBinding(type, fieldBinding);
+        // add a new field binding - it may fail in some cases
+        boolean wasBound = addNewFieldBinding(type, fieldBinding);
+        if (wasBound) {
+            // add new field to the class
+            addNewFieldDeclaration(type, recorderField);
 
-        // Note: the TypeDeclaration.addClinit() calls needClassInitMethod() which checks for presence of any static
-        // fields initializers etc and adds "<clinit>" method if necessary. As it was already called BEFORE we added
-        // our recorder field, we must call it again, if <clinit> is not present. Otherwise field won't initialize.
-        addClinit(type);
+            // Note: the TypeDeclaration.addClinit() calls needClassInitMethod() which checks for presence of any static
+            // fields initializers etc and adds "<clinit>" method if necessary. As it was already called BEFORE we added
+            // our recorder field, we must call it again, if <clinit> is not present. Otherwise field won't initialize.
+            addClinit(type);
+        }
+        return wasBound;
     }
 
     public static void addNewFieldDeclaration(TypeDeclaration targetType, FieldDeclaration field) {
@@ -73,7 +80,19 @@ public class TypeDeclarationUtils {
         targetType.fields = newFields;
     }
 
-    public static void addNewFieldBinding(TypeDeclaration targetType, FieldBinding field) {
+    /**
+     * @param targetType
+     * @param field
+     * @return boolean - true if binding was succesful
+     */
+    public static boolean addNewFieldBinding(TypeDeclaration targetType, FieldBinding field) {
+        // a type may have no source binding attached if a class with such name was already declared in another file
+        if (targetType.binding == null) {
+            // failed to bind a field
+            System.out.println("Clover failed to add instrumentation to class: " + String.valueOf(targetType.name));
+            return false;
+        }
+
         final FieldBinding[] oldFields = targetType.binding.fields;
         final FieldBinding[] newFields;
         if (oldFields != null) {
@@ -94,6 +113,7 @@ public class TypeDeclarationUtils {
 
         // write fields back
         targetType.binding.fields = newFields;
+        return true;
     }
 
     /**

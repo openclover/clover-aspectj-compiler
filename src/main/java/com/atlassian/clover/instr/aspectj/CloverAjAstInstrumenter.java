@@ -62,6 +62,8 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
     private CharToLineColMapper lineColMapper;
 
+    private boolean instrumentClass = true;
+
     public CloverAjAstInstrumenter(final InstrumentationSession session,
                                    final AjInstrumentationConfig config,
                                    final LookupEnvironment lookupEnvironment) {
@@ -118,7 +120,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                 false);
 
         if (config.isInstrumentAST()) {
-            TypeDeclarationUtils.addCoverageRecorderField(typeDeclaration, lookupEnvironment,
+            instrumentClass = TypeDeclarationUtils.addCoverageRecorderField(typeDeclaration, lookupEnvironment,
                     config.getInitString(), session.getVersion(), session.getCurrentFileMaxIndex());
         }
 
@@ -143,29 +145,31 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
         final boolean ret = super.visit(constructorDeclaration, scope);
 
-        // Rewrite the method's code into sth like this
-        // try { $CLV_R.inc(index);
-        //   ...original code...
-        // } finally {
-        //    $CLV_R.maybeFlush();
-        // }
+        if (instrumentClass) {
+            // Rewrite the method's code into sth like this
+            // try { $CLV_R.inc(index);
+            //   ...original code...
+            // } finally {
+            //    $CLV_R.maybeFlush();
+            // }
 
-        // Note: the super() call is stored in ConstructorDeclaration.constructorCall field instead of
-        // ConstructorDeclaration.statements, so we don't have to worry about when wrapping statements into the
-        // try-catch block - the super() call will be always the first statement
+            // Note: the super() call is stored in ConstructorDeclaration.constructorCall field instead of
+            // ConstructorDeclaration.statements, so we don't have to worry about when wrapping statements into the
+            // try-catch block - the super() call will be always the first statement
 
-        // $CLV_R.inc(index) for a constructor + $CLV_R.inc() for each of original statements
-        final int index = methodInfo.getDataIndex();
-        final Statement[] statementsPlusOne = insertStatementBefore(
-                createRecorderIncCall(index),
-                instrumentStatements(constructorDeclaration.statements, null));
+            // $CLV_R.inc(index) for a constructor + $CLV_R.inc() for each of original statements
+            final int index = methodInfo.getDataIndex();
+            final Statement[] statementsPlusOne = insertStatementBefore(
+                    createRecorderIncCall(index),
+                    instrumentStatements(constructorDeclaration.statements, null));
 
-        // encapsulate it in a try-finally block with coverage flushing
-        final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
+            // encapsulate it in a try-finally block with coverage flushing
+            final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
 
-        // swap constructor's code with the new one
-        if (config.isInstrumentAST()) {
-            constructorDeclaration.statements = new Statement[]{tryBlock};
+            // swap constructor's code with the new one
+            if (config.isInstrumentAST()) {
+                constructorDeclaration.statements = new Statement[]{tryBlock};
+            }
         }
 
         return ret;
@@ -189,58 +193,60 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
         final boolean ret = super.visit(methodDeclaration, scope);
 
-        // Special case: the InterTypeConstructorDeclaration is handled as a MethodDeclaration and it may have an
-        // explicit constructor call declared in the 'statements' field instead of the 'explicitConstructorCall'
-        // ensure that we won't wrap this super() in the try-catch block as it must be first statement
-        final boolean hasSuperCall = methodDeclaration.statements != null
-                && methodDeclaration.statements.length > 0
-                && methodDeclaration.statements[0] instanceof ExplicitConstructorCall;
-        final int index = methodInfo.getDataIndex();
+        if (instrumentClass) {
+            // Special case: the InterTypeConstructorDeclaration is handled as a MethodDeclaration and it may have an
+            // explicit constructor call declared in the 'statements' field instead of the 'explicitConstructorCall'
+            // ensure that we won't wrap this super() in the try-catch block as it must be first statement
+            final boolean hasSuperCall = methodDeclaration.statements != null
+                    && methodDeclaration.statements.length > 0
+                    && methodDeclaration.statements[0] instanceof ExplicitConstructorCall;
+            final int index = methodInfo.getDataIndex();
 
-        if (!hasSuperCall) {
-            // Special case: don't instrument pointcuts
-            if (!(methodDeclaration instanceof PointcutDeclaration)) {
-                // Rewrite the method's code into sth like this
-                // try { $CLV_R.inc(index);
-                //   ...original code...
+            if (!hasSuperCall) {
+                // Special case: don't instrument pointcuts
+                if (!(methodDeclaration instanceof PointcutDeclaration)) {
+                    // Rewrite the method's code into sth like this
+                    // try { $CLV_R.inc(index);
+                    //   ...original code...
+                    // } finally {
+                    //    $CLV_R.maybeFlush();
+                    // }
+
+                    // $CLV_R.inc(index) for a method + $CLV_R.inc() for each of original statements
+                    final Statement[] statementsPlusOne = insertStatementBefore(
+                            createRecorderIncCall(index),
+                            instrumentStatements(methodDeclaration.statements, null));
+
+                    // encapsulate it in a try-finally block with coverage flushing
+                    final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
+
+                    // swap method's code with the new one
+                    if (config.isInstrumentAST()) {
+                        methodDeclaration.statements = new Statement[]{tryBlock};
+                    }
+                }
+            } else {
+                // Rewrite the method's code into this:
+                // super(...);
+                // try $CLV_R.inc(index);
+                //   ...rest of the original code...
                 // } finally {
                 //    $CLV_R.maybeFlush();
                 // }
+                final Statement superCall = methodDeclaration.statements[0];
+                final Statement[] otherStatements = new Statement[methodDeclaration.statements.length - 1];
+                System.arraycopy(methodDeclaration.statements, 1, otherStatements, 0, methodDeclaration.statements.length - 1);
 
-                // $CLV_R.inc(index) for a method + $CLV_R.inc() for each of original statements
-                final Statement[] statementsPlusOne = insertStatementBefore(
-                        createRecorderIncCall(index),
-                        instrumentStatements(methodDeclaration.statements, null));
-
-                // encapsulate it in a try-finally block with coverage flushing
-                final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
+                final TryStatement tryBlock =
+                        createTryFinallyWithRecorderFlush(
+                                insertStatementBefore(
+                                        createRecorderIncCall(index),
+                                        instrumentStatements(otherStatements, null)));
 
                 // swap method's code with the new one
                 if (config.isInstrumentAST()) {
-                    methodDeclaration.statements = new Statement[]{tryBlock};
+                    methodDeclaration.statements = new Statement[]{superCall, tryBlock};
                 }
-            }
-        } else {
-            // Rewrite the method's code into this:
-            // super(...);
-            // try $CLV_R.inc(index);
-            //   ...rest of the original code...
-            // } finally {
-            //    $CLV_R.maybeFlush();
-            // }
-            final Statement superCall = methodDeclaration.statements[0];
-            final Statement[] otherStatements = new Statement[methodDeclaration.statements.length - 1];
-            System.arraycopy(methodDeclaration.statements, 1, otherStatements, 0, methodDeclaration.statements.length - 1);
-
-            final TryStatement tryBlock =
-                    createTryFinallyWithRecorderFlush(
-                            insertStatementBefore(
-                                    createRecorderIncCall(index),
-                                    instrumentStatements(otherStatements, null)));
-
-            // swap method's code with the new one
-            if (config.isInstrumentAST()) {
-                methodDeclaration.statements = new Statement[]{superCall, tryBlock};
             }
         }
 
@@ -425,6 +431,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     protected Statement[] instrumentStatements(final Statement[] originalStatements, final BlockScope blockScope) {
+        // can't instrument because recorder field is not available
+        if (!instrumentClass) {
+            return originalStatements;
+        }
+
         // do not instrument statements for METHOD-only level
         if (config.getInstrLevel() == InstrumentationLevel.METHOD) {
             return originalStatements;
@@ -457,6 +468,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     protected Statement instrumentStatement(final Statement originalStatement, final BlockScope blockScope) {
+        // can't instrument because recorder field is not available
+        if (!instrumentClass) {
+            return originalStatement;
+        }
+
         // do not instrument statements for METHOD-only level
         if (config.getInstrLevel() == InstrumentationLevel.METHOD) {
             return originalStatement;
