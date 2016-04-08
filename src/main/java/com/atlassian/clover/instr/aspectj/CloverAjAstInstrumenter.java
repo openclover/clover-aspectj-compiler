@@ -165,11 +165,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
             // ConstructorDeclaration.statements, so we don't have to worry about when wrapping statements into the
             // try-catch block - the super() call will be always the first statement
 
-            // $CLV_R.inc(index) for a constructor + $CLV_R.inc() for each of original statements
+            // $CLV_R.inc(index) for a constructor + original statements (will be instrumented in a Block)
             final int index = methodInfo.getDataIndex();
             final Statement[] statementsPlusOne = insertStatementBefore(
                     createRecorderIncCall(index),
-                    instrumentStatements(constructorDeclaration.statements, null));
+                    constructorDeclaration.statements);
 
             // encapsulate it in a try-finally block with coverage flushing
             final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
@@ -220,10 +220,10 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                     //    $CLV_R.maybeFlush();
                     // }
 
-                    // $CLV_R.inc(index) for a method + $CLV_R.inc() for each of original statements
+                    // $CLV_R.inc(index) for a method + original statements (will be instrumented in a Block)
                     final Statement[] statementsPlusOne = insertStatementBefore(
                             createRecorderIncCall(index),
-                            instrumentStatements(methodDeclaration.statements, null));
+                            methodDeclaration.statements);
 
                     // encapsulate it in a try-finally block with coverage flushing
                     final TryStatement tryBlock = createTryFinallyWithRecorderFlush(statementsPlusOne);
@@ -249,7 +249,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                         createTryFinallyWithRecorderFlush(
                                 insertStatementBefore(
                                         createRecorderIncCall(index),
-                                        instrumentStatements(otherStatements, null)));
+                                        otherStatements));
 
                 // swap method's code with the new one
                 if (config.isInstrumentAST()) {
