@@ -81,8 +81,6 @@ public class TypeDeclarationUtils {
     }
 
     /**
-     * @param targetType
-     * @param field
      * @return boolean - true if binding was succesful
      */
     public static boolean addNewFieldBinding(TypeDeclaration targetType, FieldBinding field) {

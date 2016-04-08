@@ -297,7 +297,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     /**
-     * For statement, e.g. "for (a=0; a < b; a++)"
+     * For statement
      */
     @Override
     public void endVisit(final ForStatement statement, final BlockScope scope) {
@@ -323,7 +323,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     }
 
     /**
-     * If statement, e.g. "if (a < b) ..."
+     * If statement
      */
     @Override
     public void endVisit(final IfStatement statement, final BlockScope scope) {

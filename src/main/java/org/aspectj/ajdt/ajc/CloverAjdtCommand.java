@@ -50,7 +50,7 @@ public class CloverAjdtCommand extends AjdtCommand {
      * Parse Clover-related settings. It handles a subset of CloverInstr options. We shall avoid any conflicts
      * with original AJC options https://eclipse.org/aspectj/doc/next/devguide/ajc-ref.html
      *
-     * @param args
+     * @param args original arguments
      * @return Pair of: AjInstrumentationConfig (Clover settings) and List&lt;String&gt; (arguments for AJC)
      * @see CloverInstr#processArgs(java.lang.String[])
      */
