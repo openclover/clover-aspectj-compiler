@@ -196,8 +196,8 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         final MethodInfo methodInfo = enterConstructorOrMethod(
                 methodDeclaration,
                 MethodSignatureUtil.extractMethodSignature(methodDeclaration),
-                treatAsTestMethod(methodDeclaration),
-                getStaticTestName(methodDeclaration));
+                false,
+                getStaticTestName(methodDeclaration)); // TODO we won't see this until issue #1 is fixed
 
         final boolean ret = super.visit(methodDeclaration, scope);
 
@@ -569,14 +569,6 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         incCall.arguments = new Expression[]{indexLiteral};
 
         return incCall;
-    }
-
-    /**
-     * A hack to display a static test name instead of the AJC-generated method name
-     */
-    private boolean treatAsTestMethod(MethodDeclaration methodDeclaration) {
-        return methodDeclaration instanceof DeclareDeclaration
-                || methodDeclaration instanceof InterTypeMethodDeclaration;
     }
 
     /**
