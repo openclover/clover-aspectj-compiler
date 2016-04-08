@@ -54,6 +54,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Walks the entire abstract syntax tree adding Clover instrumentation.
@@ -202,7 +204,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
         if (instrumentClass) {
             // Special case: the InterTypeConstructorDeclaration is handled as a MethodDeclaration and it may have an
             // explicit constructor call declared in the 'statements' field instead of the 'explicitConstructorCall'
-            // ensure that we won't wrap this super() in the try-catch block as it must be first statement
+            // ensure that we won't wrap this super() in the try-catch block as it must be the first statement
             final boolean hasSuperCall = methodDeclaration.statements != null
                     && methodDeclaration.statements.length > 0
                     && methodDeclaration.statements[0] instanceof ExplicitConstructorCall;
@@ -267,8 +269,6 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
 
     // instrument statements
 
-    // TODO Expression (?), LabeledStatement (?)
-
     /**
      * Variable assignment, e.g. "i = 2"
      */
@@ -292,11 +292,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final DoStatement statement, final BlockScope scope) {
-        if (statement.action instanceof Block) {
-            ((Block) statement.action).statements = instrumentStatements(((Block) statement.action).statements, scope);
-        } else {
-            statement.action = instrumentStatement(statement.action, scope);
-        }
+        statement.action = instrumentNonBlockOrEmptyBlockStatement(statement.action, scope);
         super.endVisit(statement, scope);
     }
 
@@ -307,22 +303,12 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
     public void endVisit(final ForStatement statement, final BlockScope scope) {
         // TODO shall we instrument statement.initializations ?
         // TODO shall we instrument statement.increments ?
-        if (statement.action instanceof Block) {
-            // block starts with "{" brace, which is usually in a line above statement(s);
-            // so to have lines coloured correctly in the report, instrument statements inside
-            ((Block) statement.action).statements = instrumentStatements(((Block) statement.action).statements, scope);
-        } else {
-            // typically an EmptyStatement, still instrument it
-            statement.action = instrumentStatement(statement.action, scope);
-        }
-
+        statement.action = instrumentNonBlockOrEmptyBlockStatement(statement.action, scope);
         super.endVisit(statement, scope);
     }
 
-    // TODO Remove "instance of Block" references from other callbacks
-
     @Override
-    public void endVisit(Block block, BlockScope scope) {
+    public void endVisit(final Block block, final BlockScope scope) {
         block.statements = instrumentStatements(block.statements, scope);
         super.endVisit(block, scope);
     }
@@ -332,14 +318,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final ForeachStatement statement, final BlockScope scope) {
-        if (statement.action instanceof Block) {
-            // block starts with "{" brace, which is usually in a line above statement(s);
-            // so to have lines coloured correctly in the report, instrument statements inside
-            ((Block) statement.action).statements = instrumentStatements(((Block) statement.action).statements, scope);
-        } else {
-            // typically an EmptyStatement, still instrument it
-            statement.action = instrumentStatement(statement.action, scope);
-        }
+        statement.action = instrumentNonBlockOrEmptyBlockStatement(statement.action, scope);
         super.endVisit(statement, scope);
     }
 
@@ -348,29 +327,11 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final IfStatement statement, final BlockScope scope) {
-        statement.thenStatement = instrumentStatement(statement.thenStatement, scope);
+        statement.thenStatement = instrumentNonBlockOrEmptyBlockStatement(statement.thenStatement, scope);
         if (statement.elseStatement != null) {
-            statement.elseStatement = instrumentStatement(statement.elseStatement, scope);
+            statement.elseStatement = instrumentNonBlockOrEmptyBlockStatement(statement.elseStatement, scope);
         }
         super.endVisit(statement, scope);
-    }
-
-    /**
-     * Local variable declaration, e.g. "Foo f = new Foo();"
-     */
-    @Override
-    public void endVisit(final LocalDeclaration localDeclaration, final BlockScope scope) {
-        // TODO do we need this? instrumentStatement(localDeclaration, scope);
-        super.endVisit(localDeclaration, scope);
-    }
-
-    /**
-     * Simple method call, e.g. "foo();"
-     */
-    @Override
-    public void endVisit(final MessageSend messageSend, final BlockScope scope) {
-        // TODO do we need this? instrumentStatement(messageSend, scope);
-        super.endVisit(messageSend, scope);
     }
 
     /**
@@ -396,14 +357,14 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final TryStatement tryStatement, final BlockScope scope) {
-        tryStatement.tryBlock.statements = instrumentStatements(tryStatement.tryBlock.statements, scope);
+        tryStatement.tryBlock = (Block) instrumentNonBlockOrEmptyBlockStatement(tryStatement.tryBlock, scope);
         if (tryStatement.catchBlocks != null) {
             for (int i = 0; i < tryStatement.catchBlocks.length; i++) {
-                tryStatement.catchBlocks[i].statements = instrumentStatements(tryStatement.catchBlocks[i].statements, scope);
+                tryStatement.catchBlocks[i] = (Block) instrumentNonBlockOrEmptyBlockStatement(tryStatement.catchBlocks[i], scope);
             }
         }
         if (tryStatement.finallyBlock != null) {
-            tryStatement.finallyBlock.statements = instrumentStatements(tryStatement.finallyBlock.statements, scope);
+            tryStatement.finallyBlock = (Block) instrumentNonBlockOrEmptyBlockStatement(tryStatement.finallyBlock, scope);
         }
         super.endVisit(tryStatement, scope);
     }
@@ -413,11 +374,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
      */
     @Override
     public void endVisit(final WhileStatement whileStatement, final BlockScope scope) {
-        if (whileStatement.action instanceof Block) {
-            ((Block) whileStatement.action).statements = instrumentStatements(((Block) whileStatement.action).statements, scope);
-        } else {
-            whileStatement.action = instrumentStatement(whileStatement.action, scope);
-        }
+        whileStatement.action = instrumentNonBlockOrEmptyBlockStatement(whileStatement.action, scope);
         super.endVisit(whileStatement, scope);
     }
 
@@ -461,24 +418,53 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
             return originalStatements;
         }
 
-        // do not instrument empty blocks
-        // TODO consider adding at least one CLV_R.inc() in such case, e.g. "if (a) { } else { }" could show coverage
+        // do not instrument empty blocks, it's handled in other callbacks
         if (originalStatements == null || originalStatements.length == 0) {
             return originalStatements;
         }
 
-        // TODO it seems that we are visiting statements added by method node rewrite (inc,maybeFlush)
-        // TODO shall we rewrite it or rewrite all statements in a method node?
         // for every statement in the block, add extra $CLV_R.inc() before it
-        final Statement[] instrStatements = new Statement[originalStatements.length * 2];
-        for (int i = 0; i < originalStatements.length; i++) {
-            int index = registerStatement(originalStatements[i]);
-            final MessageSend incCall = createRecorderIncCall(index);
-            instrStatements[i * 2] = incCall;
-            instrStatements[i * 2 + 1] = originalStatements[i];
+        final List<Statement> instrStatements = new ArrayList<Statement>(originalStatements.length * 2);
+        for (Statement originalStatement : originalStatements) {
+            // do not instrument Clover's own instructions
+            if (!originalStatement.toString().startsWith("$CLV_R.")) {
+                instrStatements.add(createRecorderIncCall(registerStatement(originalStatement)));
+            }
+            instrStatements.add(originalStatement);
         }
 
-        return config.isInstrumentAST() ? instrStatements : originalStatements;
+        return config.isInstrumentAST()
+                ? instrStatements.toArray(new Statement[instrStatements.size()])
+                : originalStatements;
+    }
+
+    /**
+     * Instrument given statement if one of the following conditions are met:
+     *  - statement is not a block (a single statement or an empty statement)
+     *  - statement is a block, but is empty
+     *
+     * If none of the conditions is met, it returns original statement.
+     *
+     * Note: blocks are normally instrumented by endVisit(Block,BlockScope), which calls instrumentStatements();
+     * however, empty blocks does not get an CLV_R.inc() call instruction inside as there's no code context;
+     * for this reason we must rewrite non-block statements and empty blocks using instrumentStatement().
+     */
+    protected Statement instrumentNonBlockOrEmptyBlockStatement(final Statement originalStatement, final BlockScope blockScope) {
+        return isNonEmptyBlock(originalStatement)
+                ? originalStatement
+                : instrumentStatement(originalStatement, blockScope);
+    }
+
+    /**
+     * Returns true if the statement is a block and it contains at least one statement inside.
+     *
+     * @param statement statement to be checked
+     * @return boolean
+     */
+    private boolean isNonEmptyBlock(Statement statement) {
+        return statement instanceof Block
+                && ((Block) statement).statements != null
+                && ((Block) statement).statements.length > 0;
     }
 
     protected Statement instrumentStatement(final Statement originalStatement, final BlockScope blockScope) {
@@ -498,10 +484,12 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
             return originalStatement;
         }
 
-        // TODO do not instrument our own calls - $CLV_R.inc() or $CLV_R.maybeFlush() etc
-        // TODO e.g.: if (!(originalStatement instanceof MessageSend) || !originalStatement.toString().startsWith("$CLV_R."))
+        // do not instrument Clover's own calls
+        if (originalStatement.toString().startsWith("$CLV_R.")) {
+            return originalStatement;
+        }
 
-        // register new statement in database
+        // register new statement in a database
         final int index = registerStatement(originalStatement);
         final MessageSend incCall = createRecorderIncCall(index);
 
@@ -614,6 +602,7 @@ public class CloverAjAstInstrumenter extends ASTVisitor {
                     fileReader = new FileReader(file);
                 }
                 final ChecksummingReader chksumReader = new ChecksummingReader(fileReader);
+                //noinspection StatementWithEmptyBody
                 while (chksumReader.read() != -1) { /*no-op*/ }
                 return chksumReader.getChecksum();
             } else {
