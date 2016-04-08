@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.atlassian.clover</groupId>
     <artifactId>clover-aspectj-compiler</artifactId>
-    <version>0.8.0-SNAPSHOT</version>
+    <version>0.8.0</version>
     <parent>
         <groupId>com.atlassian.pom</groupId>
         <artifactId>public-pom</artifactId>
@@ -35,7 +33,8 @@
         <connection>scm:hg:ssh://hg@bitbucket.org/atlassian/clover-aspectj-compiler</connection>
         <developerConnection>scm:hg:ssh://hg@bitbucket.org/atlassian/clover-aspectj-compiler</developerConnection>
         <url>https://bitbucket.org/atlassian/clover-aspectj-compiler/src</url>
-    </scm>
+      <tag>clover-aspectj-compiler-0.8.0</tag>
+  </scm>
     <developers>
         <developer>
             <id>mparfianowicz</id>
