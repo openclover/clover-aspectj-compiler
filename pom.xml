@@ -1,76 +1,67 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.atlassian.clover</groupId>
+    <groupId>org.openclover</groupId>
     <artifactId>clover-aspectj-compiler</artifactId>
-    <version>0.8.1-SNAPSHOT</version>
-    <parent>
-        <groupId>com.atlassian.pom</groupId>
-        <artifactId>public-pom</artifactId>
-        <version>4.0.17</version>
-    </parent>
-    <url>https://confluence.atlassian.com/display/CLOVER/Clover+AspectJ+Compiler</url>
+    <version>1.0.0-SNAPSHOT</version>
+    <url>https://openclover.org</url>
     <licenses>
         <license>
             <name>Apache License 2.0</name>
             <url>http://www.apache.org/licenses/LICENSE-2.0</url>
             <distribution>repo</distribution>
             <comments>
-                The Clover AspectJ Compiler is licensed under the Apache 2.0 license. However, binary dependencies have different licences:
-                1) com.atlassian.clover:clover is a commercial software, see http://www.atlassian.com/software/clover/licensing.jsp.
-                2) org.aspectj:aspectjtools is licensed under Eclipse Public License
+                The OpenClover AspectJ Compiler is licensed under the Apache License 2.0. The binary dependency
+                org.aspectj:aspectjtools is licensed under Eclipse Public License.
             </comments>
         </license>
     </licenses>
     <issueManagement>
-        <url>https://bitbucket.org/atlassian/clover-aspectj-compiler/issues</url>
+        <url>https://bitbucket.org/openclover/clover-aspectj-compiler/issues</url>
     </issueManagement>
     <organization>
-        <name>Atlassian Pty Ltd</name>
-        <url>http://www.atlassian.com/</url>
+        <name>OpenClover</name>
+        <url>http://openclover.org/</url>
     </organization>
     <scm>
-        <connection>scm:hg:ssh://hg@bitbucket.org/atlassian/clover-aspectj-compiler</connection>
-        <developerConnection>scm:hg:ssh://hg@bitbucket.org/atlassian/clover-aspectj-compiler</developerConnection>
-        <url>https://bitbucket.org/atlassian/clover-aspectj-compiler/src</url>
-      <tag>HEAD</tag>
-  </scm>
+        <connection>scm:hg:ssh://hg@bitbucket.org/openclover/clover-aspectj-compiler</connection>
+        <developerConnection>scm:hg:ssh://hg@bitbucket.org/openclover/clover-aspectj-compiler</developerConnection>
+        <url>https://bitbucket.org/openclover/clover-aspectj-compiler/src</url>
+        <tag>HEAD</tag>
+    </scm>
     <developers>
         <developer>
             <id>mparfianowicz</id>
             <name>Marek Parfianowicz</name>
-            <email>mparfianowicz@atlassian.com</email>
+            <email>marek.parfianowicz@gmail.com</email>
         </developer>
     </developers>
-    <properties>
-        <clover.license.path>${user.home}/clover.license</clover.license.path>
-    </properties>
     <dependencies>
         <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjrt</artifactId>
-            <version>1.8.9</version>
+            <version>1.8.10</version>
         </dependency>
         <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjtools</artifactId>
-            <version>1.8.9</version>
+            <version>1.8.10</version>
         </dependency>
         <dependency>
-            <groupId>com.atlassian.clover</groupId>
+            <groupId>org.openclover</groupId>
             <artifactId>clover</artifactId>
-            <version>4.1.1</version>
+            <version>4.2.0</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.11</version>
+            <version>4.12</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-exec</artifactId>
-            <version>1.1</version>
+            <version>1.3</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -79,7 +70,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-clean-plugin</artifactId>
-                <version>2.5</version>
+                <version>3.0.0</version>
                 <configuration>
                     <filesets>
                         <fileset>
@@ -96,7 +87,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.5.1</version>
+                <version>3.6.1</version>
                 <configuration>
                     <source>1.6</source>
                     <target>1.6</target>
@@ -106,7 +97,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-install-plugin</artifactId>
-                <version>2.5.1</version>
+                <version>2.5.2</version>
                 <configuration>
                     <createChecksum>true</createChecksum>
                 </configuration>
@@ -114,7 +105,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.8.1</version>
+                <version>2.10.4</version>
                 <configuration>
                     <quiet>true</quiet>
                 </configuration>
@@ -129,7 +120,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
-                <version>2.2.1</version>
+                <version>3.0.1</version>
                 <executions>
                     <execution>
                         <goals>
@@ -140,12 +131,33 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>1.6</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.19</version>
-                <configuration>
-                    <argLine>-Dclover.license.path=${clover.license.path}</argLine>
-                </configuration>
+                <version>2.19.1</version>
             </plugin>
         </plugins>
     </build>
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
 </project>
