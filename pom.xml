@@ -4,6 +4,8 @@
     <groupId>org.openclover</groupId>
     <artifactId>clover-aspectj-compiler</artifactId>
     <version>1.0.1-SNAPSHOT</version>
+    <name>Clover AspectJ Compiler</name>
+    <description>A wrapper for AspectJ compiler which allows code instrumentation using OpenClover.</description>
     <url>https://openclover.org</url>
     <licenses>
         <license>
