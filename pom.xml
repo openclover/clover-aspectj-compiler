@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.openclover</groupId>
     <artifactId>clover-aspectj-compiler</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.0.0</version>
     <name>Clover AspectJ Compiler</name>
     <description>A wrapper for AspectJ compiler which allows code instrumentation using OpenClover.</description>
     <url>https://openclover.org</url>
@@ -29,7 +29,7 @@
         <connection>scm:hg:ssh://hg@bitbucket.org/openclover/clover-aspectj-compiler</connection>
         <developerConnection>scm:hg:ssh://hg@bitbucket.org/openclover/clover-aspectj-compiler</developerConnection>
         <url>https://bitbucket.org/openclover/clover-aspectj-compiler/src</url>
-        <tag>HEAD</tag>
+        <tag>clover-aspectj-compiler-1.0.0</tag>
     </scm>
     <developers>
         <developer>
