@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.openclover</groupId>
     <artifactId>clover-aspectj-compiler</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1-SNAPSHOT</version>
     <url>https://openclover.org</url>
     <licenses>
         <license>
@@ -27,7 +27,7 @@
         <connection>scm:hg:ssh://hg@bitbucket.org/openclover/clover-aspectj-compiler</connection>
         <developerConnection>scm:hg:ssh://hg@bitbucket.org/openclover/clover-aspectj-compiler</developerConnection>
         <url>https://bitbucket.org/openclover/clover-aspectj-compiler/src</url>
-        <tag>clover-aspectj-compiler-1.0.0</tag>
+        <tag>HEAD</tag>
     </scm>
     <developers>
         <developer>
