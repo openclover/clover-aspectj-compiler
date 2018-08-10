@@ -4,7 +4,7 @@ This is Clover integration with AspectJ, which has been prepared during Atlassia
 
 # Documentation #
 
-http://openclover.org/doc/manual/4.2.0/aspectj--clover-aspectj-compiler.html
+http://openclover.org/doc/manual/latest/aspectj--clover-aspectj-compiler.html
 
 # Contact #
 
