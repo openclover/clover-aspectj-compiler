@@ -1,3 +1,4 @@
 syntax: glob
 clover-aspectj-compiler.iml
 .idea
+target

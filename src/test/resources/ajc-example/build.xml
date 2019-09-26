@@ -2,7 +2,7 @@
     <property name="clover.license.path" location="${user.home}/clover.license"/>
 
     <property name="clover-ajc.jar" location="${user.home}/.m2/repository/org/openclover/clover-aspectj-compiler/1.0.0/clover-aspectj-compiler-1.0.0.jar"/>
-    <property name="clover-core.jar" location="${user.home}/.m2/repository/com/openclover/clover/4.3.1/clover-4.3.1.jar"/>
+    <property name="clover-core.jar" location="${user.home}/.m2/repository/com/openclover/clover/4.4.0/clover-4.4.0.jar"/>
     <property name="ajc-rt.jar" location="${user.home}/.m2/repository/org/aspectj/aspectjrt/1.8.9/aspectjrt-1.8.9.jar"/>
     <property name="ajc-tools.jar" location="${user.home}/.m2/repository/org/aspectj/aspectjtools/1.8.9/aspectjtools-1.8.9.jar"/>
 
