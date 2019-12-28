@@ -30,7 +30,7 @@
             <arg value="-d"/>
             <arg value="${build.classes.dir}"/>
             <arg value="-noExit"/>
-            <arg value="-1.6"/> <!-- java source/target level -->
+            <arg value="-1.7"/> <!-- java source/target level -->
         </java>
     </target>
 

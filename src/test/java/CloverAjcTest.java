@@ -35,7 +35,7 @@ public class CloverAjcTest {
                 "-sourceroots", SOURCE_DIR,
                 "-d", TARGET_CLASSES_DIR,
                 "-noExit",
-                "-1.6" // source/target=1.6
+                "-1.7" // source/target
         };
         final List<String> failures = Lists.newArrayList();
         final List<String> errors = Lists.newArrayList();
