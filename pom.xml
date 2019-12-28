@@ -19,16 +19,17 @@
         </license>
     </licenses>
     <issueManagement>
-        <url>https://bitbucket.org/openclover/clover-aspectj-compiler/issues</url>
+        <system>GitHub</system>
+        <url>https://github.com/openclover/clover/issues</url>
     </issueManagement>
     <organization>
         <name>OpenClover</name>
         <url>http://openclover.org/</url>
     </organization>
     <scm>
-        <connection>scm:hg:ssh://hg@bitbucket.org/openclover/clover-aspectj-compiler</connection>
-        <developerConnection>scm:hg:ssh://hg@bitbucket.org/openclover/clover-aspectj-compiler</developerConnection>
-        <url>https://bitbucket.org/openclover/clover-aspectj-compiler/src</url>
+        <connection>scm:git:ssh://git@github.com/openclover/clover-aspectj-compiler.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/openclover/clover-aspectj-compiler.git</developerConnection>
+        <url>https://github.com/openclover/clover-aspectj-compiler/src</url>
         <tag>HEAD</tag>
     </scm>
     <developers>
